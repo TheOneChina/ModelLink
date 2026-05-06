@@ -778,7 +778,8 @@ fn start_server() -> Result<(), String> {
         let config = load_config();
         let _ = save_config_file(&config);
 
-        eprintln!("Claude Desktop Model Proxy v1.0");
+        eprintln!("ModelLink v1.0 — 抖音Winhao学AI (抖音号:54927876676)");
+        eprintln!("本软件完全免费，不可商业化");
         eprintln!("Proxy: http://127.0.0.1:{}", PORT);
         eprintln!("Providers: {}", config.providers.len());
 
@@ -885,7 +886,7 @@ fn main() {
     app_menu.init_for_nsapp();
 
     let window = WindowBuilder::new()
-        .with_title("ModelLink")
+        .with_title("ModelLink — 抖音Winhao学AI (免费软件，不可商业化)")
         .with_inner_size(tao::dpi::LogicalSize::new(860.0, 760.0))
         .build(&event_loop)
         .expect("Failed to create window");
@@ -907,7 +908,7 @@ fn main() {
         .with_icon(make_tray_icon())
         .with_menu(Box::new(tray_menu))
         .with_menu_on_left_click(false)
-        .with_tooltip("ModelLink")
+        .with_tooltip("ModelLink - 抖音Winhao学AI")
         .build()
         .expect("Failed to create tray icon");
 
