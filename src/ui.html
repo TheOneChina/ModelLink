@@ -129,14 +129,14 @@ body { min-height: 100vh; overflow-y: scroll; scrollbar-gutter: stable; padding-
   overflow: visible !important;
 }
 [data-theme="dark"] .wm-bar {
-  background: rgba(29, 35, 42, 0.92) !important;
-  color: rgba(255, 255, 255, 0.5) !important;
-  border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
+  background: rgba(29, 35, 42, 0.95) !important;
+  color: rgba(255, 255, 255, 0.85) !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.15) !important;
 }
 [data-theme="light"] .wm-bar {
-  background: rgba(250, 249, 245, 0.92) !important;
-  color: rgba(0, 0, 0, 0.4) !important;
-  border-top: 1px solid rgba(0, 0, 0, 0.08) !important;
+  background: rgba(250, 249, 245, 0.95) !important;
+  color: rgba(0, 0, 0, 0.7) !important;
+  border-top: 1px solid rgba(0, 0, 0, 0.12) !important;
 }
 
 /* Watermark header badge */
@@ -152,15 +152,15 @@ body { min-height: 100vh; overflow-y: scroll; scrollbar-gutter: stable; padding-
   user-select: none !important;
   -webkit-user-select: none !important;
   visibility: visible !important;
-  opacity: 0.5 !important;
+  opacity: 1 !important;
 }
 [data-theme="dark"] .wm-badge {
-  background: rgba(255,255,255,0.05) !important;
-  color: rgba(255,255,255,0.4) !important;
+  background: rgba(255,255,255,0.1) !important;
+  color: rgba(255,255,255,0.7) !important;
 }
 [data-theme="light"] .wm-badge {
-  background: rgba(0,0,0,0.04) !important;
-  color: rgba(0,0,0,0.3) !important;
+  background: rgba(0,0,0,0.06) !important;
+  color: rgba(0,0,0,0.55) !important;
 }
 
 /* Diagonal watermark - canvas based, harder to remove */
@@ -276,7 +276,7 @@ body { min-height: 100vh; overflow-y: scroll; scrollbar-gutter: stable; padding-
     </div>
 
     <p class="text-center text-xs opacity-30 mt-5">~/.claude-model-proxy/config.json</p>
-    <p class="text-center text-xs opacity-40 mt-3" style="user-select:none">抖音Winhao学AI · 抖音号: 54927876676<br>本软件完全免费，不可商业化</p>
+    <p class="text-center text-xs opacity-70 mt-3" style="user-select:none">抖音Winhao学AI · 抖音号: 54927876676<br>本软件完全免费，不可商业化</p>
   </div>
 </div>
 
@@ -588,7 +588,7 @@ bootstrap();
       var fontSize = 13 * dpr;
       ctx.font = '500 ' + fontSize + 'px Outfit, sans-serif';
       var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-      ctx.fillStyle = isDark ? 'rgba(255,255,255,0.045)' : 'rgba(0,0,0,0.035)';
+      ctx.fillStyle = isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)';
       ctx.rotate(-25 * Math.PI / 180);
       var stepX = 360 * dpr, stepY = 100 * dpr;
       for (var y = -c.height; y < c.height * 2; y += stepY) {
