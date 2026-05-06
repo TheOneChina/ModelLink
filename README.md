@@ -49,9 +49,9 @@
 
 ## 首次使用
 
-### 1. 初始化 Claude Desktop（仅首次需要）
+### macOS 首次配置
 
-ModelLink 需要 Claude Desktop 开启第三方推理模式。首次使用或重置数据后，需手动操作一次：
+#### 第一步：初始化 Claude Desktop（仅首次需要）
 
 1. 打开 Claude Desktop，完成初始启动
 2. 菜单栏进入 **Help > Troubleshooting > Enable Developer Mode**
@@ -64,18 +64,42 @@ ModelLink 需要 Claude Desktop 开启第三方推理模式。首次使用或重
 
 完成后，后续所有配置通过 ModelLink 管理，无需再手动操作。
 
-### 2. 配置 ModelLink
+### Windows 首次配置
 
-1. 打开 ModelLink
+Windows 上 Claude Desktop 的菜单位置与 macOS 不同，请按以下步骤操作：
+
+#### 第一步：初始化 Claude Desktop（仅首次需要）
+
+1. 打开 Claude Desktop，完成初始启动
+2. 点击左上角 **☰ 汉堡菜单**（三条横线图标）
+3. 进入 **Help > Troubleshooting > Enable Developer Mode**
+4. 完全关闭并重新打开 Claude Desktop
+5. 再次点击 **☰ 汉堡菜单**，进入 **Developer > Configure third-party inference**
+6. 在弹出的配置面板中：
+   - **Backend** 选择 `Gateway (Anthropic-compatible)`
+   - **Gateway URL** 填写 `http://127.0.0.1:5678`
+   - **API Key** 填写 `proxy`
+7. 点击 **Apply locally** 保存
+
+> **说明：** 这一步的作用是把 Claude Desktop 的 API 请求从 Anthropic 官方服务器改为指向本地的 ModelLink 代理（`127.0.0.1:5678`）。之后 ModelLink 会将请求转发到你配置的第三方 API（如 DeepSeek、Kimi 等）。
+
+#### 第二步：配置 ModelLink
+
+1. 双击运行 `ModelLink.exe`（需和 `WebView2Loader.dll` 在同一目录）
 2. 点击「添加服务商」
-3. 填写 API 地址和密钥
-4. 添加模型名称（填什么名称，Claude Desktop 中就显示什么）
-5. 点击「保存配置」
-6. 点击「应用到 Claude Desktop」— Claude Desktop 会自动重启
+3. 填写你的第三方 API 信息：
+   - **API 地址**：填写第三方服务商提供的 API 地址（如 `https://api.deepseek.com/anthropic`）
+   - **API 密钥**：填写你在第三方平台申请的 API Key
+4. 点击「添加模型」，填写模型名称（填什么名称，Claude Desktop 中就显示什么）
+5. 点击「测试」验证连接是否正常
+6. 点击「保存配置」
+7. 点击「应用到 Claude Desktop」— Claude Desktop 会自动重启
 
-### 3. 开始使用
+#### 第三步：开始使用
 
 在 Claude Desktop 的模型选择器中选择你配置的模型即可。
+
+> **提示：** ModelLink 需要保持运行。关闭窗口后 ModelLink 会缩小到系统托盘继续工作，不会影响 Claude Desktop 使用。
 
 ## 多服务商示例
 
