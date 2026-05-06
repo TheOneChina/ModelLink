@@ -163,22 +163,6 @@ body { min-height: 100vh; overflow-y: scroll; scrollbar-gutter: stable; padding-
   color: rgba(0,0,0,0.55) !important;
 }
 
-/* Diagonal watermark - canvas based, harder to remove */
-.wm-canvas {
-  position: fixed !important;
-  inset: 0 !important;
-  z-index: 2147483646 !important;
-  pointer-events: none !important;
-  user-select: none !important;
-  -webkit-user-select: none !important;
-  display: block !important;
-  visibility: visible !important;
-  opacity: 1 !important;
-  transform: none !important;
-  clip: auto !important;
-  clip-path: none !important;
-  filter: none !important;
-}
 </style>
 </head>
 <body class="p-6">
@@ -561,7 +545,7 @@ bootstrap();
   const _D = '抖音号: 54927876676';
   const _F = '本软件完全免费，不可商业化';
   const _BAR = _W+'  |  '+_D+'  |  '+_F;
-  const _TILE = _W+'  '+_D+'  '+_F;
+
   const _BADGE = _W+' · 免费软件';
   const _SIG = 'wm_' + Date.now().toString(36);
 
@@ -572,33 +556,6 @@ bootstrap();
     b.textContent = _BAR;
     document.body.appendChild(b);
     return b;
-  }
-
-  function createCanvas() {
-    var c = document.createElement('canvas');
-    c.className = 'wm-canvas';
-    c.setAttribute('data-wm', _SIG);
-    c.width = window.innerWidth * (window.devicePixelRatio || 1);
-    c.height = window.innerHeight * (window.devicePixelRatio || 1);
-    c.style.width = '100%';
-    c.style.height = '100%';
-    var ctx = c.getContext('2d');
-    if (ctx) {
-      var dpr = window.devicePixelRatio || 1;
-      var fontSize = 13 * dpr;
-      ctx.font = '500 ' + fontSize + 'px Outfit, sans-serif';
-      var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-      ctx.fillStyle = isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)';
-      ctx.rotate(-25 * Math.PI / 180);
-      var stepX = 360 * dpr, stepY = 100 * dpr;
-      for (var y = -c.height; y < c.height * 2; y += stepY) {
-        for (var x = -c.width; x < c.width * 2; x += stepX) {
-          ctx.fillText(_TILE, x + ((y / stepY) % 2 === 0 ? 0 : stepX / 2), y);
-        }
-      }
-    }
-    document.body.appendChild(c);
-    return c;
   }
 
   function createBadge() {
@@ -615,15 +572,11 @@ bootstrap();
   }
 
   var bar = createBar();
-  var canvas = createCanvas();
   setTimeout(createBadge, 1500);
 
   function checkIntegrity() {
     if (!document.body.querySelector('.wm-bar[data-wm="'+_SIG+'"]')) {
       bar = createBar();
-    }
-    if (!document.body.querySelector('.wm-canvas[data-wm="'+_SIG+'"]')) {
-      canvas = createCanvas();
     }
     var b = document.body.querySelector('.wm-bar[data-wm="'+_SIG+'"]');
     if (b) {
@@ -637,16 +590,6 @@ bootstrap();
           parseInt(cs.fontSize) < 5) {
         b.remove();
         bar = createBar();
-      }
-    }
-    var cv = document.body.querySelector('.wm-canvas[data-wm="'+_SIG+'"]');
-    if (cv) {
-      var cvs = window.getComputedStyle(cv);
-      if (cvs.display === 'none' || cvs.visibility === 'hidden' ||
-          parseFloat(cvs.opacity) < 0.3 || cvs.position !== 'fixed' ||
-          parseInt(cvs.height) < 50 || parseInt(cvs.width) < 50) {
-        cv.remove();
-        canvas = createCanvas();
       }
     }
     if (!document.querySelector('.wm-badge[data-wm="'+_SIG+'"]')) {
@@ -677,12 +620,6 @@ bootstrap();
     if (needCheck) setTimeout(checkIntegrity, 50);
   });
   mo.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['style','class','hidden'] });
-
-  window.addEventListener('resize', function() {
-    var old = document.body.querySelector('.wm-canvas[data-wm="'+_SIG+'"]');
-    if (old) old.remove();
-    canvas = createCanvas();
-  });
 
   var _origTitle = document.title;
   Object.defineProperty(document, 'title', {
