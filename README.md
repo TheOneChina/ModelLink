@@ -22,6 +22,25 @@
 | macOS | `ModelLink.app.zip` |
 | Windows | `ModelLink-Windows.zip` |
 
+## 安装
+
+### macOS
+
+1. 解压 `ModelLink-macOS.zip`
+2. 将 `ModelLink.app` 拖入「应用程序」文件夹
+3. 首次打开如果提示"已损坏"，在终端执行：
+   ```bash
+   xattr -cr /Applications/ModelLink.app
+   ```
+4. 双击打开即可
+
+### Windows
+
+1. 解压 `ModelLink-Windows.zip`
+2. 确保 `ModelLink.exe` 和 `WebView2Loader.dll` 在同一目录
+3. 双击 `ModelLink.exe` 运行
+4. 首次运行如果触发 Windows Defender 警告，选择「仍然运行」
+
 ## 首次使用
 
 ### 1. 初始化 Claude Desktop（仅首次需要）
