@@ -1,0 +1,103 @@
+# ModelLink
+
+让 Claude Desktop 桌面端接入任意第三方 API 模型的本地代理工具。
+
+## 功能
+
+- 将第三方模型（DeepSeek、Kimi、智谱 GLM 等）接入 Claude Desktop
+- 支持同时配置多个 API 服务商，按模型自动路由
+- Claude Desktop 模型选择器中直接显示真实模型名称
+- 支持 1M 上下文模型变体
+- 可视化配置界面，无需手动编辑配置文件
+- 菜单栏/系统托盘常驻，关闭窗口后代理继续运行
+- 深色/亮色/跟随系统主题切换
+- 连接测试、请求日志、开机自启
+
+## 下载
+
+从 [Releases](../../releases) 页面下载：
+
+| 平台 | 文件 |
+|------|------|
+| macOS | `ModelLink.app.zip` |
+| Windows | `ModelLink-Windows.zip` |
+
+## 首次使用
+
+### 1. 初始化 Claude Desktop（仅首次需要）
+
+ModelLink 需要 Claude Desktop 开启第三方推理模式。首次使用或重置数据后，需手动操作一次：
+
+1. 打开 Claude Desktop，完成初始启动
+2. 菜单栏进入 **Help > Troubleshooting > Enable Developer Mode**
+3. 重启 Claude Desktop
+4. 菜单栏进入 **Developer > Configure third-party inference**
+5. Backend 选择 **Gateway (Anthropic-compatible)**
+6. Gateway URL 填写 `http://127.0.0.1:5678`
+7. API Key 填写 `proxy`
+8. 点击 **Apply locally**
+
+完成后，后续所有配置通过 ModelLink 管理，无需再手动操作。
+
+### 2. 配置 ModelLink
+
+1. 打开 ModelLink
+2. 点击「添加服务商」
+3. 填写 API 地址和密钥
+4. 添加模型名称（填什么名称，Claude Desktop 中就显示什么）
+5. 点击「保存配置」
+6. 点击「应用到 Claude Desktop」— Claude Desktop 会自动重启
+
+### 3. 开始使用
+
+在 Claude Desktop 的模型选择器中选择你配置的模型即可。
+
+## 多服务商示例
+
+可以同时接入多个厂商，按模型自动路由到不同 API：
+
+```
+服务商 1: DeepSeek
+  API: https://api.deepseek.com/anthropic
+  模型: deepseek-v4-pro, deepseek-v4-flash
+
+服务商 2: Kimi
+  API: https://api.kimi.com/coding/
+  模型: kimi-k2.6
+```
+
+Claude Desktop 中会同时显示所有模型，选择后自动路由到对应厂商。
+
+## Windows 注意事项
+
+- 需要 WebView2 Runtime（Windows 10/11 自带 Edge 的通常已有）
+- `ModelLink.exe` 和 `WebView2Loader.dll` 需放在同一目录
+- 首次运行可能触发 Windows Defender 警告，选择「仍然运行」即可
+
+## 技术原理
+
+ModelLink 在本地 `127.0.0.1:5678` 运行一个代理服务：
+
+```
+Claude Desktop → 发送 Anthropic 模型名 → ModelLink 代理 → 替换为真实模型名 → 第三方 API
+```
+
+Claude Desktop 的 Gateway 指向本地代理，代理根据配置的映射关系将请求转发到对应的 API 服务商。
+
+## 构建
+
+需要 Rust 工具链：
+
+```bash
+# macOS
+cargo build --release
+
+# Windows（交叉编译）
+rustup target add x86_64-pc-windows-gnu
+brew install mingw-w64
+cargo build --release --target x86_64-pc-windows-gnu
+```
+
+## 许可证
+
+MIT

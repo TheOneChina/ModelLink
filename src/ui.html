@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ModelLink</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/daisyui@5" rel="stylesheet" type="text/css" />
+<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+<script>
+(function(){
+  const p = localStorage.getItem('theme') || 'system';
+  const d = p === 'dark' || (p === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  document.documentElement.setAttribute('data-theme', d ? 'dark' : 'light');
+})();
+</script>
+<style type="text/tailwindcss">
+@theme {
+  --font-sans: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+  --color-claude: #D97757;
+  --color-claude-hover: #c4684a;
+  --color-claude-muted: #D9775720;
+  --color-leaf: #4db8a0;
+  --color-slate-blue: #6a9bcc;
+}
+</style>
+<style>
+[data-theme="dark"] {
+  --color-primary: #D97757;
+  --color-accent: #4db8a0;
+  --color-secondary: #6a9bcc;
+}
+[data-theme="light"] {
+  --color-primary: #D97757;
+  --color-accent: #3da890;
+  --color-secondary: #5a89b8;
+}
+* { font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif; }
+body { min-height: 100vh; overflow-y: scroll; scrollbar-gutter: stable; }
+
+/* Loading */
+#loading { position:fixed; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; z-index:9999; transition:opacity .4s ease; }
+[data-theme="dark"] #loading { background:#1d232a; }
+[data-theme="light"] #loading { background:#faf9f5; }
+#loading.hide { opacity:0; pointer-events:none; }
+#loading .mark { width:48px; height:48px; border-radius:50%; background:#D97757; animation:pulse-mark 1.6s ease-in-out infinite; }
+#loading .tip { font-size:13px; margin-top:20px; letter-spacing:0.02em; }
+[data-theme="dark"] #loading .tip { color:#9ca3af; }
+[data-theme="light"] #loading .tip { color:#6b7280; }
+@keyframes pulse-mark { 0%,100%{transform:scale(1);opacity:1} 50%{transform:scale(1.15);opacity:.7} }
+
+/* Transitions */
+.page-transition { transition: opacity .2s ease, transform .2s ease; }
+.page-enter { opacity:0; transform:translateY(8px); }
+
+/* Cards */
+.provider-card { transition: box-shadow .2s ease, border-color .2s ease; }
+[data-theme="dark"] .provider-card { border:1px solid rgba(255,255,255,.06); }
+[data-theme="light"] .provider-card { border:1px solid rgba(0,0,0,.06); }
+.provider-card:hover { border-color: #D9775740; }
+
+/* Buttons */
+.btn { transition: all .15s ease; }
+.btn:active:not(:disabled) { transform: scale(0.97); }
+
+/* Model row */
+.model-row { transition: background .15s ease; border-radius:0.5rem; padding:6px 8px; margin:-6px -8px; }
+.model-row:hover { background: rgba(128,128,128,.06); }
+
+/* Empty state */
+.empty-state { display:flex; flex-direction:column; align-items:center; padding:3rem 1rem; }
+.empty-dot { width:56px; height:56px; border-radius:50%; background:var(--color-claude-muted); display:flex; align-items:center; justify-content:center; margin-bottom:1rem; }
+
+/* Log entry */
+.log-row { padding: 4px 0; border-bottom: 1px solid rgba(128,128,128,.08); }
+.log-row:last-child { border-bottom:none; }
+
+/* Settings row */
+.setting-row { display:flex; align-items:center; justify-content:space-between; padding: 14px 0; }
+.setting-row + .setting-row { border-top: 1px solid rgba(128,128,128,.1); }
+
+/* Scrollbar */
+::-webkit-scrollbar { width:6px; }
+::-webkit-scrollbar-track { background:transparent; }
+::-webkit-scrollbar-thumb { background:rgba(128,128,128,.2); border-radius:3px; }
+::-webkit-scrollbar-thumb:hover { background:rgba(128,128,128,.35); }
+
+/* Toast */
+#toast-container { position:fixed; top:16px; right:16px; z-index:9000; display:flex; flex-direction:column; gap:8px; pointer-events:none; }
+.toast-item { pointer-events:auto; display:flex; align-items:center; gap:10px; padding:12px 18px; border-radius:12px; font-size:14px; font-weight:500; max-width:360px; animation: toast-in .25s ease; backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); }
+.toast-item.removing { animation: toast-out .2s ease forwards; }
+.toast-success { background:rgba(120,140,93,.15); border:1px solid rgba(120,140,93,.3); color:#4db8a0; }
+.toast-error { background:rgba(238,85,85,.12); border:1px solid rgba(238,85,85,.25); color:#e55; }
+.toast-warning { background:rgba(212,168,67,.12); border:1px solid rgba(212,168,67,.25); color:#d4a843; }
+.toast-dot { width:6px; height:6px; border-radius:50%; flex-shrink:0; }
+.toast-success .toast-dot { background:#4db8a0; }
+.toast-error .toast-dot { background:#e55; }
+.toast-warning .toast-dot { background:#d4a843; }
+@keyframes toast-in { from { opacity:0; transform:translateX(20px); } to { opacity:1; transform:translateX(0); } }
+@keyframes toast-out { from { opacity:1; transform:translateX(0); } to { opacity:0; transform:translateX(20px); } }
+</style>
+</head>
+<body class="p-6">
+
+<div id="loading">
+  <div class="mark"></div>
+  <div class="tip" id="loading-tip">正在启动...</div>
+</div>
+<div id="toast-container"></div>
+
+<div class="max-w-2xl mx-auto" style="opacity:0" id="app-root">
+
+  <!-- Header: Main -->
+  <div class="flex items-center justify-between mb-6" id="header-main">
+    <div class="flex items-center gap-3">
+      <h1 class="text-xl font-semibold tracking-tight">ModelLink</h1>
+      <span class="inline-flex items-center gap-1.5 text-sm font-medium px-2.5 py-0.5 rounded-full" style="background:var(--color-claude-muted);color:#D97757;">
+        <span class="w-1.5 h-1.5 rounded-full bg-[#D97757] animate-pulse"></span>
+        运行中
+      </span>
+    </div>
+    <button class="btn btn-ghost btn-sm btn-circle opacity-60 hover:opacity-100 transition-opacity" onclick="switchPage()" title="设置">
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    </button>
+  </div>
+
+  <!-- Header: Settings -->
+  <div class="flex items-center gap-3 mb-6 hidden" id="header-settings">
+    <button class="btn btn-ghost btn-sm btn-circle opacity-60 hover:opacity-100 transition-opacity" onclick="switchPage()" title="返回">
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><polyline points="12 19 5 12 12 5"/></svg>
+    </button>
+    <h1 class="text-xl font-semibold tracking-tight">设置</h1>
+  </div>
+
+  <!-- Main Page -->
+  <div id="page-main" class="page-transition">
+    <div id="providers" class="flex flex-col gap-4 mb-4"></div>
+
+    <div id="empty-state" class="empty-state" style="display:none">
+      <div class="empty-dot">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#D97757" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+      </div>
+      <div class="text-sm font-medium mb-1">尚未配置服务商</div>
+      <div class="text-xs opacity-50 mb-4">添加一个 API 服务商开始使用</div>
+    </div>
+
+    <button class="btn btn-ghost btn-sm btn-block border-dashed border-base-content/15 mb-5 hover:border-[#D97757] hover:text-[#D97757] transition-colors" onclick="addProvider()">
+      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+      添加服务商
+    </button>
+
+    <div class="grid grid-cols-2 gap-3">
+      <button class="btn btn-neutral h-12 text-sm" onclick="saveConfig()">保存配置</button>
+      <button class="btn h-12 text-sm text-white" style="background:#D97757;border:none" onmouseover="this.style.background='#c4684a'" onmouseout="this.style.background='#D97757'" onclick="applyToClaude()">应用到 Claude Desktop</button>
+    </div>
+
+  </div>
+
+  <!-- Settings Page -->
+  <div id="page-settings" class="hidden page-transition">
+    <div class="card bg-base-200 mb-4 provider-card">
+      <div class="card-body p-5">
+        <div class="setting-row" style="padding-top:0">
+          <div>
+            <div class="text-base font-medium">外观</div>
+            <div class="text-xs opacity-50 mt-0.5">切换颜色模式</div>
+          </div>
+          <div class="join">
+            <button class="btn btn-xs join-item theme-btn" data-val="light" onclick="setTheme('light')">亮色</button>
+            <button class="btn btn-xs join-item theme-btn" data-val="system" onclick="setTheme('system')">跟随系统</button>
+            <button class="btn btn-xs join-item theme-btn" data-val="dark" onclick="setTheme('dark')">深色</button>
+          </div>
+        </div>
+        <div class="setting-row" style="padding-bottom:0">
+          <div>
+            <div class="text-base font-medium">开机自启</div>
+            <div class="text-xs opacity-50 mt-0.5">登录时自动启动代理</div>
+          </div>
+          <input type="checkbox" class="toggle toggle-sm toggle-accent" id="autostart-toggle" onchange="toggleAutostart(this.checked)">
+        </div>
+      </div>
+    </div>
+
+    <div class="card bg-base-200 provider-card">
+      <div class="card-body p-5">
+        <div class="flex items-center justify-between mb-3">
+          <div class="text-base font-medium">请求日志</div>
+          <button class="btn btn-xs btn-ghost opacity-60 hover:opacity-100" onclick="loadLogs()">刷新</button>
+        </div>
+        <div id="logs-area" class="bg-base-300/50 rounded-xl p-3 h-64 overflow-y-auto text-xs font-mono">
+          <div class="flex items-center justify-center h-full opacity-40">暂无记录</div>
+        </div>
+      </div>
+    </div>
+
+    <p class="text-center text-xs opacity-30 mt-5">~/.claude-model-proxy/config.json</p>
+  </div>
+</div>
+
+<script>
+const MAX_MODELS = 8;
+let cfg = {};
+
+function totalModels() {
+  return (cfg.providers || []).reduce((s, p) => s + (p.models || []).length, 0);
+}
+
+async function init() {
+  const r = await fetch('/api/config');
+  cfg = await r.json();
+  if (!cfg.providers) cfg.providers = [];
+  render();
+}
+
+function render() {
+  const el = document.getElementById('providers');
+  const empty = document.getElementById('empty-state');
+  el.innerHTML = '';
+  const hasProviders = cfg.providers && cfg.providers.length > 0;
+  empty.style.display = hasProviders ? 'none' : '';
+  if (!hasProviders) return;
+
+  cfg.providers.forEach((p, pi) => {
+    const card = document.createElement('div');
+    card.className = 'card bg-base-200 provider-card';
+    let modelsHtml = '';
+    (p.models || []).forEach((m, mi) => {
+      const safeVal = (m.name||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+      modelsHtml += `
+        <div class="model-row flex items-center gap-2">
+          <input type="text" class="input input-bordered input-md flex-1" value="${safeVal}" onchange="cfg.providers[${pi}].models[${mi}].name=this.value" placeholder="如 deepseek-v4-pro">
+          <label class="flex items-center gap-1.5 cursor-pointer flex-shrink-0 select-none">
+            <input type="checkbox" class="toggle toggle-sm toggle-accent" ${m.to_1m?'checked':''} onchange="cfg.providers[${pi}].models[${mi}].to_1m=this.checked?'auto':''">
+            <span class="text-xs opacity-50 font-medium">1M</span>
+          </label>
+          <button class="btn btn-ghost btn-xs btn-square opacity-30 hover:opacity-100 hover:text-error transition-opacity" onclick="delModel(${pi},${mi})">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+          </button>
+        </div>`;
+    });
+
+    const safeUrl = (p.target_url||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+    const safeKey = (p.api_key||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+    card.innerHTML = `
+      <div class="card-body p-6">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-base font-semibold tracking-tight">服务商 ${pi+1}</h3>
+          <button class="btn btn-ghost btn-sm opacity-40 hover:opacity-100 hover:text-error transition-opacity" onclick="delProvider(${pi})">删除</button>
+        </div>
+        <div class="grid grid-cols-2 gap-3 mb-4">
+          <div>
+            <label class="text-xs font-medium opacity-40 uppercase tracking-wider mb-1 block">API 地址</label>
+            <input type="text" class="input input-bordered input-md w-full" value="${safeUrl}" onchange="cfg.providers[${pi}].target_url=this.value" placeholder="https://api.deepseek.com/anthropic">
+          </div>
+          <div>
+            <label class="text-xs font-medium opacity-40 uppercase tracking-wider mb-1 block">API 密钥</label>
+            <label class="input input-bordered input-md w-full flex items-center gap-2">
+              <input type="password" class="grow" value="${safeKey}" onchange="cfg.providers[${pi}].api_key=this.value" placeholder="sk-xxx">
+              <span class="cursor-pointer text-xs opacity-40 hover:opacity-80 select-none transition-opacity" onclick="toggleKeyAt(this)">显示</span>
+            </label>
+          </div>
+        </div>
+        <div class="flex items-center justify-between mb-2">
+          <label class="text-xs font-medium opacity-40 uppercase tracking-wider">模型列表</label>
+          <button class="btn btn-xs btn-outline border-slate-blue/30 text-slate-blue hover:bg-slate-blue hover:text-white hover:border-slate-blue transition-colors" onclick="testProvider(${pi})" id="test-btn-${pi}">
+            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            测试
+          </button>
+        </div>
+        <div id="test-result-${pi}" class="text-xs mb-1 hidden"></div>
+        <div class="flex flex-col gap-1">${modelsHtml}</div>
+        <button class="btn btn-ghost btn-xs w-full border-dashed border-base-content/10 mt-2 opacity-50 hover:opacity-100 hover:border-[#D97757] hover:text-[#D97757] transition-all" onclick="addModel(${pi})">
+          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+          添加模型
+        </button>
+      </div>`;
+    el.appendChild(card);
+  });
+}
+
+function addProvider() {
+  cfg.providers = cfg.providers || [];
+  cfg.providers.push({target_url:'', api_key:'', models:[]});
+  render();
+}
+
+function delProvider(pi) {
+  cfg.providers.splice(pi, 1);
+  render();
+}
+
+function addModel(pi) {
+  if (totalModels() >= MAX_MODELS) {
+    showMsg('所有服务商的模型总数最多 ' + MAX_MODELS + ' 个。', 'alert-warning');
+    return;
+  }
+  cfg.providers[pi].models = cfg.providers[pi].models || [];
+  cfg.providers[pi].models.push({name:'', to_1m:'auto'});
+  render();
+}
+
+function delModel(pi, mi) {
+  cfg.providers[pi].models.splice(mi, 1);
+  render();
+}
+
+async function testProvider(pi) {
+  const p = cfg.providers[pi];
+  if (!p.target_url || !p.api_key || !p.models || !p.models.length || !p.models[0].name) {
+    showTestResult(pi, false, '请填写 API 地址、密钥和至少一个模型名。');
+    return;
+  }
+  const btn = document.getElementById('test-btn-' + pi);
+  btn.innerHTML = '<span class="loading loading-spinner loading-xs"></span>';
+  btn.disabled = true;
+  try {
+    const r = await fetch('/api/test', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({target_url: p.target_url, api_key: p.api_key, model: p.models[0].name})
+    });
+    const d = await r.json();
+    showTestResult(pi, d.ok, d.message);
+  } catch(e) {
+    showTestResult(pi, false, '请求失败。');
+  }
+  btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> 测试';
+  btn.disabled = false;
+}
+
+function showTestResult(pi, ok, msg) {
+  const el = document.getElementById('test-result-' + pi);
+  if (!el) return;
+  const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;');
+  el.innerHTML = '<span class="inline-block w-1.5 h-1.5 rounded-full mr-1 ' + (ok ? 'bg-accent' : 'bg-error') + '"></span>' + esc(msg);
+  el.className = 'text-xs mb-1 ' + (ok ? 'text-accent' : 'text-error');
+  setTimeout(() => { el.className = 'text-xs mb-1 hidden'; }, 6000);
+}
+
+async function saveConfig() {
+  const r = await fetch('/api/config', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(cfg)
+  });
+  const d = await r.json();
+  showMsg(d.ok ? '配置已保存。' : ('错误: ' + d.message), d.ok ? 'alert-success' : 'alert-error');
+}
+
+async function applyToClaude() {
+  await fetch('/api/config', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(cfg)
+  });
+  const r = await fetch('/api/apply', {method:'POST'});
+  const d = await r.json();
+  showMsg(d.ok ? '已应用，Claude Desktop 正在重启...' : ('错误: ' + d.message), d.ok ? 'alert-success' : 'alert-error');
+}
+
+function toggleKeyAt(span) {
+  const input = span.parentElement.querySelector('input');
+  input.type = input.type === 'password' ? 'text' : 'password';
+  span.textContent = input.type === 'password' ? '显示' : '隐藏';
+}
+
+function showMsg(text, cls) {
+  const type = cls.includes('success') ? 'success' : cls.includes('error') ? 'error' : 'warning';
+  const container = document.getElementById('toast-container');
+  const toast = document.createElement('div');
+  toast.className = 'toast-item toast-' + type;
+  toast.innerHTML = '<span class="toast-dot"></span>' + text.replace(/&/g,'&amp;').replace(/</g,'&lt;');
+  container.appendChild(toast);
+  const duration = type === 'error' ? 6000 : 3500;
+  setTimeout(() => {
+    toast.classList.add('removing');
+    setTimeout(() => toast.remove(), 250);
+  }, duration);
+}
+
+function applyTheme(pref) {
+  const dark = pref === 'dark' || (pref === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+  document.querySelectorAll('.theme-btn').forEach(b => {
+    const active = b.dataset.val === pref;
+    b.classList.toggle('btn-primary', active);
+    b.classList.toggle('btn-ghost', !active);
+  });
+}
+
+function setTheme(pref) {
+  localStorage.setItem('theme', pref);
+  applyTheme(pref);
+}
+
+function initTheme() {
+  const pref = localStorage.getItem('theme') || 'system';
+  applyTheme(pref);
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+    if ((localStorage.getItem('theme') || 'system') === 'system') applyTheme('system');
+  });
+}
+
+async function loadAutostart() {
+  try {
+    const r = await fetch('/api/autostart');
+    const d = await r.json();
+    document.getElementById('autostart-toggle').checked = d.enabled;
+  } catch(e) {}
+}
+
+async function toggleAutostart(enabled) {
+  const r = await fetch('/api/autostart', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({enabled})
+  });
+  const d = await r.json();
+  if (!d.ok) showMsg('Failed: ' + (d.message||''), 'alert-error');
+}
+
+async function loadLogs() {
+  const el = document.getElementById('logs-area');
+  el.innerHTML = '<div class="flex items-center justify-center h-full opacity-40">加载中...</div>';
+  try {
+    const r = await fetch('/api/logs');
+    const logs = await r.json();
+    if (!logs.length) {
+      el.innerHTML = '<div class="flex items-center justify-center h-full opacity-40">暂无记录</div>';
+      return;
+    }
+    const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    el.innerHTML = logs.slice(-50).reverse().map(l => {
+      const ok = l.status === 200;
+      return `<div class="log-row flex items-center gap-2">
+        <span class="opacity-40 flex-shrink-0">${esc(l.time)}</span>
+        <span class="w-1.5 h-1.5 rounded-full flex-shrink-0 ${ok?'bg-accent':'bg-error'}"></span>
+        <span class="truncate">${esc(l.from)}</span>
+        <span class="opacity-20 flex-shrink-0">&rarr;</span>
+        <span class="truncate font-medium">${esc(l.to)}</span>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    el.innerHTML = '<div class="flex items-center justify-center h-full text-error opacity-60">加载失败</div>';
+  }
+}
+
+let currentPage = 'main';
+function switchPage() {
+  const isMain = currentPage === 'main';
+  const from = document.getElementById(isMain ? 'page-main' : 'page-settings');
+  const to = document.getElementById(isMain ? 'page-settings' : 'page-main');
+  from.classList.add('hidden');
+  to.classList.remove('hidden');
+  to.classList.add('page-enter');
+  requestAnimationFrame(() => requestAnimationFrame(() => to.classList.remove('page-enter')));
+  document.getElementById('header-main').classList.toggle('hidden', isMain);
+  document.getElementById('header-settings').classList.toggle('hidden', !isMain);
+  currentPage = isMain ? 'settings' : 'main';
+  if (isMain) loadLogs();
+}
+
+const TIPS = ['正在启动代理...', '加载资源中...', '即将就绪...'];
+let tipIdx = 0;
+const tipEl = document.getElementById('loading-tip');
+const tipTimer = setInterval(() => { tipIdx = (tipIdx + 1) % TIPS.length; tipEl.textContent = TIPS[tipIdx]; }, 1500);
+
+async function bootstrap() {
+  initTheme();
+  await loadAutostart();
+  await init();
+  clearInterval(tipTimer);
+  document.getElementById('loading').classList.add('hide');
+  const root = document.getElementById('app-root');
+  root.style.opacity = '1';
+  root.style.transition = 'opacity .3s ease';
+  setTimeout(() => document.getElementById('loading')?.remove(), 500);
+}
+bootstrap();
+</script>
+</body>
+</html>
