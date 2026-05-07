@@ -19,16 +19,18 @@ use tokio::net::TcpListener;
 const PORT: u16 = 5678;
 const HTML: &str = include_str!("ui.html");
 
-const SLOTS: &[&str] = &[
-    "claude-3-opus-latest",
-    "claude-3-5-sonnet-latest",
-    "claude-3-sonnet-20240229",
-    "claude-3-haiku-20240307",
-    "claude-3-5-haiku-latest",
-    "claude-3-opus-20240229",
-    "claude-3-5-sonnet-20241022",
-    "claude-3-5-sonnet-20240620",
-];
+const MAX_MODELS: usize = 8;
+
+fn make_slot(name: &str) -> String {
+    let safe: String = name.chars().map(|c| {
+        if c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.' {
+            c
+        } else {
+            '-'
+        }
+    }).collect();
+    format!("claude-{}", safe)
+}
 
 #[derive(Serialize, Deserialize, Clone, Default)]
 struct Config {
@@ -44,6 +46,8 @@ struct Provider {
     api_key: String,
     #[serde(default)]
     models: Vec<ModelEntry>,
+    #[serde(default)]
+    thinking_effort: String,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -59,6 +63,8 @@ struct LogEntry {
     time: String,
     model: String,
     status: u16,
+    #[serde(default)]
+    thinking: String,
 }
 
 struct AppState {
@@ -142,22 +148,33 @@ struct ResolvedModel {
     model: String,
     target_url: String,
     api_key: String,
+    thinking_effort: String,
 }
 
-fn flatten_config(config: &Config) -> Vec<(String, String, String, String, String)> {
+struct FlatEntry {
+    slot: String,
+    name: String,
+    to_1m: String,
+    url: String,
+    key: String,
+    thinking_effort: String,
+}
+
+fn flatten_config(config: &Config) -> Vec<FlatEntry> {
     let mut result = Vec::new();
-    let mut slot_idx = 0;
+    let mut count = 0;
     for provider in &config.providers {
         for m in &provider.models {
-            if slot_idx < SLOTS.len() && !m.name.is_empty() {
-                result.push((
-                    SLOTS[slot_idx].to_string(),
-                    m.name.clone(),
-                    m.to_1m.clone(),
-                    provider.target_url.clone(),
-                    provider.api_key.clone(),
-                ));
-                slot_idx += 1;
+            if count < MAX_MODELS && !m.name.is_empty() {
+                result.push(FlatEntry {
+                    slot: make_slot(&m.name),
+                    name: m.name.clone(),
+                    to_1m: m.to_1m.clone(),
+                    url: provider.target_url.clone(),
+                    key: provider.api_key.clone(),
+                    thinking_effort: provider.thinking_effort.clone(),
+                });
+                count += 1;
             }
         }
     }
@@ -171,24 +188,42 @@ fn resolve_model(model: &str, config: &Config) -> ResolvedModel {
         (model, false)
     };
 
-    for (slot, name, to_1m, url, key) in flatten_config(config) {
-        if base == slot {
-            let resolved = if is_1m && !to_1m.is_empty() {
-                format!("{}[1m]", name)
+    let flat = flatten_config(config);
+    for e in &flat {
+        if base == e.slot {
+            let resolved = if is_1m && !e.to_1m.is_empty() {
+                format!("{}[1m]", e.name)
             } else {
-                name
+                e.name.clone()
             };
             return ResolvedModel {
                 model: resolved,
-                target_url: url,
-                api_key: key,
+                target_url: e.url.clone(),
+                api_key: e.key.clone(),
+                thinking_effort: e.thinking_effort.clone(),
             };
         }
     }
-    ResolvedModel {
-        model: model.to_string(),
-        target_url: String::new(),
-        api_key: String::new(),
+    if let Some(e) = flat.into_iter().next() {
+        let resolved = if is_1m && !e.to_1m.is_empty() {
+            format!("{}[1m]", e.name)
+        } else {
+            e.name
+        };
+        eprintln!("  fallback: {} -> {}", model, resolved);
+        ResolvedModel {
+            model: resolved,
+            target_url: e.url,
+            api_key: e.key,
+            thinking_effort: e.thinking_effort,
+        }
+    } else {
+        ResolvedModel {
+            model: model.to_string(),
+            target_url: String::new(),
+            api_key: String::new(),
+            thinking_effort: String::new(),
+        }
     }
 }
 
@@ -203,15 +238,198 @@ fn claude_3p_dir() -> Option<PathBuf> {
 
     #[cfg(target_os = "windows")]
     let dir = {
-        let appdata = std::env::var("APPDATA").ok().map(PathBuf::from)
-            .unwrap_or_else(|| home.join("AppData/Roaming"));
-        appdata.join("Claude-3p")
+        // Prefer Microsoft Store sandbox path if Store version is installed
+        let store_dir = (|| -> Option<PathBuf> {
+            let localappdata = std::env::var("LOCALAPPDATA").ok()?;
+            let packages = PathBuf::from(localappdata).join("Packages");
+            let known = packages.join("Claude_pzs8sxrjxfjjc");
+            if known.exists() {
+                return Some(known.join("LocalCache").join("Roaming").join("Claude-3p"));
+            }
+            std::fs::read_dir(&packages).ok()?.flatten()
+                .find(|e| e.file_name().to_string_lossy().starts_with("Claude_"))
+                .map(|e| e.path().join("LocalCache").join("Roaming").join("Claude-3p"))
+        })();
+
+        store_dir.unwrap_or_else(|| {
+            // Non-Store: check %LOCALAPPDATA%\Claude-3p first (newer installs)
+            let localappdata = std::env::var("LOCALAPPDATA").ok().map(PathBuf::from)
+                .unwrap_or_else(|| home.join("AppData/Local"));
+            let local_dir = localappdata.join("Claude-3p");
+            if local_dir.exists() {
+                return local_dir;
+            }
+            // Then check %APPDATA%\Claude-3p (older installs)
+            let appdata = std::env::var("APPDATA").ok().map(PathBuf::from)
+                .unwrap_or_else(|| home.join("AppData/Roaming"));
+            let roaming_dir = appdata.join("Claude-3p");
+            if roaming_dir.exists() {
+                return roaming_dir;
+            }
+            // Neither exists yet — default to APPDATA (Roaming)
+            roaming_dir
+        })
     };
 
     #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     let dir = home.join(".config/Claude-3p");
 
     Some(dir)
+}
+
+fn ensure_claude_desktop_gateway() {
+    let claude_dir = match claude_3p_dir() {
+        Some(d) => d,
+        None => {
+            eprintln!("[auto-config] FAIL: cannot determine home directory");
+            return;
+        }
+    };
+    eprintln!("[auto-config] Claude-3p dir: {}", claude_dir.display());
+
+    let config_lib = claude_dir.join("configLibrary");
+    if let Err(e) = std::fs::create_dir_all(&config_lib) {
+        eprintln!("[auto-config] FAIL: cannot create {}: {}", config_lib.display(), e);
+        return;
+    }
+
+    let our_id = "a0a0a0a0-b1b1-4c2c-9d3d-e4e4e4e4e4e4";
+    let meta_path = config_lib.join("_meta.json");
+    let mut meta: serde_json::Value = if meta_path.exists() {
+        let content = std::fs::read_to_string(&meta_path).unwrap_or_default();
+        serde_json::from_str(&content).unwrap_or(serde_json::json!({}))
+    } else {
+        serde_json::json!({})
+    };
+
+    let applied_id = meta.get("appliedId").and_then(|v| v.as_str()).unwrap_or("").to_string();
+    let target_id = if !applied_id.is_empty() && config_lib.join(format!("{}.json", applied_id)).exists() {
+        applied_id
+    } else {
+        our_id.to_string()
+    };
+
+    let config_file = config_lib.join(format!("{}.json", target_id));
+    let mut existing: serde_json::Value = if config_file.exists() {
+        let content = std::fs::read_to_string(&config_file).unwrap_or_default();
+        serde_json::from_str(&content).unwrap_or(serde_json::json!({}))
+    } else {
+        serde_json::json!({})
+    };
+
+    existing["coworkEgressAllowedHosts"] = serde_json::json!(["*"]);
+    existing["inferenceProvider"] = serde_json::json!("gateway");
+    existing["inferenceGatewayBaseUrl"] = serde_json::json!(format!("http://127.0.0.1:{}", PORT));
+    existing["inferenceGatewayApiKey"] = serde_json::json!("proxy");
+    existing["inferenceGatewayAuthScheme"] = serde_json::json!("bearer");
+    if existing.get("inferenceModels").is_none() {
+        existing["inferenceModels"] = serde_json::json!([]);
+    }
+
+    match serde_json::to_string_pretty(&existing) {
+        Ok(data) => match write_with_retry(&config_file, &data) {
+            Ok(()) => eprintln!("[auto-config] wrote {}", config_file.display()),
+            Err(e) => eprintln!("[auto-config] FAIL write {}: {}", config_file.display(), e),
+        },
+        Err(e) => { eprintln!("[auto-config] FAIL serialize: {}", e); return; }
+    }
+
+    if target_id == our_id {
+        meta["appliedId"] = serde_json::json!(our_id);
+        let entries = meta.get("entries").and_then(|e| e.as_array()).cloned().unwrap_or_default();
+        let already_exists = entries.iter().any(|e| e.get("id").and_then(|i| i.as_str()) == Some(our_id));
+        if !already_exists {
+            let mut new_entries = entries;
+            new_entries.push(serde_json::json!({"id": our_id, "name": "ModelLink"}));
+            meta["entries"] = serde_json::json!(new_entries);
+        }
+    }
+
+    if let Ok(meta_data) = serde_json::to_string_pretty(&meta) {
+        let meta_tmp = meta_path.with_extension("json.tmp");
+        let _ = std::fs::write(&meta_tmp, &meta_data);
+        let _ = std::fs::rename(&meta_tmp, &meta_path);
+    }
+
+    fn write_desktop_config(path: &PathBuf) {
+        let tmp = path.with_extension("json.tmp");
+        let mut json: serde_json::Value = if path.exists() {
+            let content = std::fs::read_to_string(path).unwrap_or_default();
+            serde_json::from_str(&content).unwrap_or(serde_json::json!({}))
+        } else {
+            serde_json::json!({})
+        };
+        json["deploymentMode"] = serde_json::json!("3p");
+        if let Ok(out) = serde_json::to_string_pretty(&json) {
+            let _ = std::fs::write(&tmp, &out);
+            let _ = std::fs::rename(&tmp, path);
+        }
+        eprintln!("[auto-config] wrote config: {}", path.display());
+    }
+
+    write_desktop_config(&claude_dir.join("claude_desktop_config.json"));
+
+    #[cfg(target_os = "windows")]
+    {
+        let normal_dir = claude_dir.parent()
+            .map(|p| p.join("Claude"))
+            .unwrap_or_else(|| {
+                let home = std::env::var("APPDATA").unwrap_or_default();
+                PathBuf::from(home).join("Claude")
+            });
+        if let Err(e) = std::fs::create_dir_all(&normal_dir) {
+            eprintln!("[auto-config] FAIL create {}: {}", normal_dir.display(), e);
+        } else {
+            eprintln!("[auto-config] Claude dir: {}", normal_dir.display());
+        }
+
+        write_desktop_config(&normal_dir.join("claude_desktop_config.json"));
+
+        let dev_settings = normal_dir.join("developer_settings.json");
+        if !dev_settings.exists() {
+            match std::fs::write(&dev_settings, r#"{"allowDevTools":true}"#) {
+                Ok(()) => eprintln!("[auto-config] wrote {}", dev_settings.display()),
+                Err(e) => eprintln!("[auto-config] FAIL write {}: {}", dev_settings.display(), e),
+            }
+        }
+
+        let normal_config = normal_dir.join("config.json");
+        if !normal_config.exists() {
+            let _ = std::fs::write(&normal_config, r#"{"locale":"zh-CN","hasTrackedInitialActivation":true}"#);
+        }
+
+        let p3_dev = claude_dir.join("developer_settings.json");
+        if !p3_dev.exists() {
+            let _ = std::fs::write(&p3_dev, r#"{"allowDevTools":true}"#);
+        }
+
+        let p3_config = claude_dir.join("config.json");
+        if !p3_config.exists() {
+            let _ = std::fs::write(&p3_config, r#"{"locale":"zh-CN","hasTrackedInitialActivation":true}"#);
+        }
+
+        // Also write to other possible paths as fallback
+        let appdata = PathBuf::from(std::env::var("APPDATA").unwrap_or_default());
+        let localappdata = PathBuf::from(std::env::var("LOCALAPPDATA").unwrap_or_default());
+        let fallback_dirs = [
+            (appdata.join("Claude-3p"), appdata.join("Claude")),
+            (localappdata.join("Claude-3p"), localappdata.join("Claude")),
+        ];
+        for (fb_3p, fb_claude) in &fallback_dirs {
+            if fb_3p == &*claude_dir { continue; }
+            let _ = std::fs::create_dir_all(fb_claude);
+            let _ = std::fs::create_dir_all(fb_3p);
+            write_desktop_config(&fb_claude.join("claude_desktop_config.json"));
+            write_desktop_config(&fb_3p.join("claude_desktop_config.json"));
+            let dev = fb_claude.join("developer_settings.json");
+            if !dev.exists() { let _ = std::fs::write(&dev, r#"{"allowDevTools":true}"#); }
+            let dev3p = fb_3p.join("developer_settings.json");
+            if !dev3p.exists() { let _ = std::fs::write(&dev3p, r#"{"allowDevTools":true}"#); }
+        }
+    }
+
+
+    eprintln!("[auto-config] done.");
 }
 
 fn apply_to_claude_desktop(config: &Config) -> Result<String, String> {
@@ -251,10 +469,10 @@ fn apply_to_claude_desktop(config: &Config) -> Result<String, String> {
     let flat = flatten_config(config);
     let models: Vec<serde_json::Value> = flat
         .iter()
-        .map(|(slot, _name, to_1m, _url, _key)| {
+        .map(|e| {
             serde_json::json!({
-                "name": slot,
-                "supports1m": !to_1m.is_empty()
+                "name": e.slot,
+                "supports1m": !e.to_1m.is_empty()
             })
         })
         .collect();
@@ -395,7 +613,28 @@ fn apply_to_claude_desktop(config: &Config) -> Result<String, String> {
         if !p3_config.exists() {
             let _ = std::fs::write(&p3_config, r#"{"locale":"zh-CN","hasTrackedInitialActivation":true}"#);
         }
+
+        // Also write to other possible paths as fallback
+        let appdata = PathBuf::from(std::env::var("APPDATA").unwrap_or_default());
+        let localappdata = PathBuf::from(std::env::var("LOCALAPPDATA").unwrap_or_default());
+        let fallback_dirs = [
+            (appdata.join("Claude-3p"), appdata.join("Claude")),
+            (localappdata.join("Claude-3p"), localappdata.join("Claude")),
+        ];
+        for (fb_3p, fb_claude) in &fallback_dirs {
+            if fb_3p == &*claude_dir { continue; }
+            let _ = std::fs::create_dir_all(fb_claude);
+            let _ = std::fs::create_dir_all(fb_3p);
+            let deploy_json = serde_json::json!({"deploymentMode": "3p"});
+            if let Ok(out) = serde_json::to_string_pretty(&deploy_json) {
+                let _ = std::fs::write(fb_claude.join("claude_desktop_config.json"), &out);
+                let _ = std::fs::write(fb_3p.join("claude_desktop_config.json"), &out);
+            }
+            let dev = fb_claude.join("developer_settings.json");
+            if !dev.exists() { let _ = std::fs::write(&dev, r#"{"allowDevTools":true}"#); }
+        }
     }
+
 
     Ok(format!("Written to {}", config_file.display()))
 }
@@ -652,16 +891,16 @@ async fn proxy_fallback(
         let config = state.config.read().unwrap_or_else(|e| e.into_inner()).clone();
         let flat = flatten_config(&config);
         let mut models: Vec<serde_json::Value> = Vec::new();
-        for (slot, name, to_1m, _url, _key) in &flat {
+        for e in &flat {
             models.push(serde_json::json!({
-                "id": slot,
-                "display_name": name,
+                "id": e.slot,
+                "display_name": e.name,
                 "created": 0
             }));
-            if !to_1m.is_empty() {
+            if !e.to_1m.is_empty() {
                 models.push(serde_json::json!({
-                    "id": format!("{}[1m]", slot),
-                    "display_name": format!("{} (1M)", name),
+                    "id": format!("{}[1m]", e.slot),
+                    "display_name": format!("{} (1M)", e.name),
                     "created": 0
                 }));
             }
@@ -696,7 +935,24 @@ async fn proxy_fallback(
             model: String::new(),
             target_url: String::new(),
             api_key: String::new(),
+            thinking_effort: String::new(),
         }
+    };
+
+    // Inject thinking effort from provider config
+    let te = &resolved.thinking_effort;
+    let thinking_log = if !te.is_empty() && te != "off" {
+        data["thinking"] = serde_json::json!({"type": "enabled", "budget_tokens": 8192});
+        data["output_config"] = serde_json::json!({"effort": te});
+        eprintln!("  thinking_effort: {}", te);
+        te.clone()
+    } else if te == "off" {
+        data["thinking"] = serde_json::json!({"type": "disabled"});
+        data.as_object_mut().map(|o| o.remove("output_config"));
+        eprintln!("  thinking: disabled");
+        "off".to_string()
+    } else {
+        String::new()
     };
 
     if resolved.target_url.is_empty() {
@@ -747,6 +1003,7 @@ async fn proxy_fallback(
             time: chrono_now(),
             model: model.to_string(),
             status: raw_status,
+            thinking: thinking_log.clone(),
         };
         let mut logs = state.logs.write().unwrap_or_else(|e| e.into_inner());
         logs.push(entry);
@@ -836,6 +1093,8 @@ fn main() {
     use wry::WebViewBuilder;
     use muda::{Menu, MenuItem, MenuEvent, Submenu, PredefinedMenuItem};
     use tray_icon::{TrayIconBuilder, TrayIconEvent};
+
+    ensure_claude_desktop_gateway();
 
     let server_err = Arc::new(std::sync::Mutex::new(None::<String>));
     let server_err_clone = server_err.clone();
