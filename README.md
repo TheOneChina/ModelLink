@@ -48,57 +48,45 @@
 
 ## 首次使用
 
-### macOS 首次配置
+### macOS
 
-#### 第一步：初始化 Claude Desktop（仅首次需要）
+1. 打开 **ModelLink**
+2. 点击「添加服务商」，选择预设或自定义，填写 API 地址和密钥
+3. 点击「测试」验证连接
+4. 点击「保存配置」，然后点击「**应用到 Claude Desktop**」
+5. Claude Desktop 会自动重启，在模型选择器中选择你配置的模型即可
 
-1. 打开 Claude Desktop，完成初始启动
-2. 菜单栏进入 **Help > Troubleshooting > Enable Developer Mode**
-3. 重启 Claude Desktop
-4. 菜单栏进入 **Developer > Configure third-party inference**
-5. Backend 选择 **Gateway (Anthropic-compatible)**
-6. Gateway URL 填写 `http://127.0.0.1:5678`
-7. API Key 填写 `proxy`
-8. 点击 **Apply locally**
+> ModelLink 启动时会自动配置 Claude Desktop 的第三方推理设置，无需手动操作。
 
-完成后，后续所有配置通过 ModelLink 管理，无需再手动操作。
+### Windows
 
-### Windows 首次配置
-
-Windows 上 Claude Desktop 的菜单位置与 macOS 不同，请按以下步骤操作：
-
-#### 第一步：初始化 Claude Desktop（仅首次需要）
-
-1. 打开 Claude Desktop，完成初始启动
-2. 点击左上角 **☰ 汉堡菜单**（三条横线图标）
-3. 进入 **Help > Troubleshooting > Enable Developer Mode**
-4. 完全关闭并重新打开 Claude Desktop
-5. 再次点击 **☰ 汉堡菜单**，进入 **Developer > Configure third-party inference**
-6. 在弹出的配置面板中：
-   - **Backend** 选择 `Gateway (Anthropic-compatible)`
-   - **Gateway URL** 填写 `http://127.0.0.1:5678`
-   - **API Key** 填写 `proxy`
-7. 点击 **Apply locally** 保存
-
-> **说明：** 这一步的作用是把 Claude Desktop 的 API 请求从 Anthropic 官方服务器改为指向本地的 ModelLink 代理（`127.0.0.1:5678`）。之后 ModelLink 会将请求转发到你配置的第三方 API（如 DeepSeek、Kimi 等）。
-
-#### 第二步：配置 ModelLink
+#### 第一步：配置 ModelLink
 
 1. 双击运行 `ModelLink.exe`（需和 `WebView2Loader.dll` 在同一目录）
-2. 点击「添加服务商」
-3. 填写你的第三方 API 信息：
-   - **API 地址**：填写第三方服务商提供的 API 地址（如 `https://api.deepseek.com/anthropic`）
-   - **API 密钥**：填写你在第三方平台申请的 API Key
-4. 点击「添加模型」，填写模型名称（填什么名称，Claude Desktop 中就显示什么）
-5. 点击「测试」验证连接是否正常
-6. 点击「保存配置」
-7. 点击「应用到 Claude Desktop」— Claude Desktop 会自动重启
+2. 点击「添加服务商」，选择预设或自定义，填写 API 地址和密钥
+3. 点击「测试」验证连接
+4. 点击「保存配置」，然后点击「**应用到 Claude Desktop**」
+
+#### 第二步：初始化 Claude Desktop（仅首次需要）
+
+ModelLink 会自动写入大部分配置，但首次使用需要在 Claude Desktop 中完成一步手动设置：
+
+1. 打开 Claude Desktop
+2. 点击左上角 **☰ 汉堡菜单** → **Developer** → **Configure third-party inference**
+3. 切换到 **Form view**（左下角按钮）
+4. **Gateway URL** 填写 `http://127.0.0.1:5678`
+5. **API Key** 填写 `proxy`
+6. 点击 **Apply locally**
+
+> 此操作只需做一次，之后永久生效。后续所有模型和服务商的增删改都在 ModelLink 中完成。
 
 #### 第三步：开始使用
 
 在 Claude Desktop 的模型选择器中选择你配置的模型即可。
 
-> **提示：** ModelLink 需要保持运行。关闭窗口后 ModelLink 会缩小到系统托盘继续工作，不会影响 Claude Desktop 使用。
+> **提示：** ModelLink 需要保持运行。关闭窗口后会缩小到系统托盘继续工作，不会影响 Claude Desktop 使用。
+>
+> **Windows 路径支持：** ModelLink 会自动检测 Claude Desktop 的安装方式（Microsoft Store / 官网 exe），无需手动指定配置目录。
 
 ## 多服务商支持
 
