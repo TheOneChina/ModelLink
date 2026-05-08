@@ -1,4 +1,22 @@
+<div align="center">
+
 # ModelLink
+
+**让 Claude Desktop 桌面端接入任意第三方 API 模型的本地代理工具**
+
+Kimi · MiniMax · 百炼 · 智谱 GLM · DeepSeek · mimo — 一键切换，无缝使用
+
+[![License: CC BY-NC-ND 4.0](https://img.shields.io/badge/License-CC%20BY--NC--ND%204.0-lightgrey.svg)](https://creativecommons.org/licenses/by-nc-nd/4.0/)
+[![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Windows-blue.svg)](#下载)
+[![Free](https://img.shields.io/badge/价格-完全免费-brightgreen.svg)](#免责声明与版权)
+
+<br/>
+
+<img src="docs/images/main-config.png" alt="ModelLink 主界面 - 配置多个 API 服务商" width="700"/>
+
+<br/>
+
+</div>
 
 > **本软件完全免费，仅供个人学习和非商业用途。严禁任何形式的商业化行为，包括但不限于出售、收费分发、嵌入付费产品等。**
 >
@@ -6,17 +24,23 @@
 >
 > 如果你是花钱买到的这个软件，你被骗了，请举报卖家。
 
-让 Claude Desktop 桌面端接入任意第三方 API 模型的本地代理工具。
-
 ## 功能
 
-- 将第三方模型（DeepSeek、Kimi、智谱 GLM 等）接入 Claude Desktop
-- 支持同时配置多个 API 服务商
+- 将第三方模型（DeepSeek、Kimi、智谱 GLM、MiniMax、百炼、mimo 等）接入 Claude Desktop
+- 支持同时配置多个 API 服务商，内置主流服务商预设，也可自定义
 - 支持 1M 上下文模型变体
 - 可视化配置界面，无需手动编辑配置文件
 - 菜单栏/系统托盘常驻，关闭窗口后代理继续运行
 - 深色/亮色/跟随系统主题切换
 - 连接测试、请求日志、开机自启
+
+<div align="center">
+<img src="docs/images/provider-list.png" alt="内置多家服务商预设，一键选择" width="380"/>
+&nbsp;&nbsp;&nbsp;&nbsp;
+<img src="docs/images/settings.png" alt="设置页面 - 主题切换与请求日志" width="380"/>
+
+<sub>左：内置服务商预设列表 &nbsp;|&nbsp; 右：设置页面（主题切换 / 请求日志）</sub>
+</div>
 
 ## 下载
 
