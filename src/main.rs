@@ -724,6 +724,7 @@ async fn test_handler(
     let test_client = Client::builder()
         .connect_timeout(std::time::Duration::from_secs(10))
         .timeout(std::time::Duration::from_secs(30))
+        .no_proxy()
         .build()
         .unwrap_or_else(|_| state.client.clone());
 
@@ -1083,6 +1084,7 @@ fn start_server() -> Result<(), String> {
             client: Client::builder()
                 .connect_timeout(std::time::Duration::from_secs(30))
                 .timeout(std::time::Duration::from_secs(300))
+                .no_proxy()
                 .build()
                 .map_err(|e| format!("Failed to create HTTP client: {}", e))?,
             logs: RwLock::new(Vec::new()),
