@@ -12,7 +12,7 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::{
     path::PathBuf,
-    sync::{Arc, RwLock},
+    sync::{atomic::{AtomicUsize, Ordering}, Arc, RwLock},
 };
 use tokio::net::TcpListener;
 
@@ -45,9 +45,38 @@ struct Provider {
     #[serde(default)]
     api_key: String,
     #[serde(default)]
+    api_keys: Vec<ApiKeyEntry>,
+    #[serde(default)]
     models: Vec<ModelEntry>,
     #[serde(default)]
     thinking_effort: String,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+struct ApiKeyEntry {
+    #[serde(default)]
+    key: String,
+    #[serde(default)]
+    label: String,
+    #[serde(default = "default_true")]
+    enabled: bool,
+}
+
+fn default_true() -> bool {
+    true
+}
+
+fn pick_api_keys(provider: &Provider) -> Vec<(String, String)> {
+    let mut keys: Vec<(String, String)> = provider
+        .api_keys
+        .iter()
+        .filter(|k| k.enabled && !k.key.is_empty())
+        .map(|k| (k.key.clone(), k.label.clone()))
+        .collect();
+    if keys.is_empty() && !provider.api_key.is_empty() {
+        keys.push((provider.api_key.clone(), String::new()));
+    }
+    keys
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -65,12 +94,15 @@ struct LogEntry {
     status: u16,
     #[serde(default)]
     thinking: String,
+    #[serde(default)]
+    key_label: String,
 }
 
 struct AppState {
     config: RwLock<Config>,
     client: Client,
     logs: RwLock<Vec<LogEntry>>,
+    key_counter: AtomicUsize,
 }
 
 const MAX_LOGS: usize = 100;
@@ -147,7 +179,7 @@ fn save_config_file(config: &Config) -> Result<(), String> {
 struct ResolvedModel {
     model: String,
     target_url: String,
-    api_key: String,
+    api_keys: Vec<(String, String)>,
     thinking_effort: String,
 }
 
@@ -156,7 +188,7 @@ struct FlatEntry {
     name: String,
     to_1m: String,
     url: String,
-    key: String,
+    keys: Vec<(String, String)>,
     thinking_effort: String,
 }
 
@@ -164,6 +196,7 @@ fn flatten_config(config: &Config) -> Vec<FlatEntry> {
     let mut result = Vec::new();
     let mut count = 0;
     for provider in &config.providers {
+        let keys = pick_api_keys(provider);
         for m in &provider.models {
             if count < MAX_MODELS && count < ANTHROPIC_SLOTS.len() && !m.name.is_empty() {
                 result.push(FlatEntry {
@@ -171,7 +204,7 @@ fn flatten_config(config: &Config) -> Vec<FlatEntry> {
                     name: m.name.clone(),
                     to_1m: m.to_1m.clone(),
                     url: provider.target_url.clone(),
-                    key: provider.api_key.clone(),
+                    keys: keys.clone(),
                     thinking_effort: provider.thinking_effort.clone(),
                 });
                 count += 1;
@@ -199,7 +232,7 @@ fn resolve_model(model: &str, config: &Config) -> ResolvedModel {
             return ResolvedModel {
                 model: resolved,
                 target_url: e.url.clone(),
-                api_key: e.key.clone(),
+                api_keys: e.keys.clone(),
                 thinking_effort: e.thinking_effort.clone(),
             };
         }
@@ -214,14 +247,14 @@ fn resolve_model(model: &str, config: &Config) -> ResolvedModel {
         ResolvedModel {
             model: resolved,
             target_url: e.url,
-            api_key: e.key,
+            api_keys: e.keys,
             thinking_effort: e.thinking_effort,
         }
     } else {
         ResolvedModel {
             model: model.to_string(),
             target_url: String::new(),
-            api_key: String::new(),
+            api_keys: Vec::new(),
             thinking_effort: String::new(),
         }
     }
@@ -443,8 +476,8 @@ fn apply_to_claude_desktop(config: &Config) -> Result<String, String> {
         if !p.target_url.starts_with("http://") && !p.target_url.starts_with("https://") {
             return Err(format!("Provider {} URL must start with http:// or https://", i + 1));
         }
-        if p.api_key.is_empty() {
-            return Err(format!("Provider {} has no API key.", i + 1));
+        if pick_api_keys(p).is_empty() {
+            return Err(format!("Provider {} has no enabled API key.", i + 1));
         }
         if p.models.is_empty() {
             return Err(format!("Provider {} has no models.", i + 1));
@@ -934,7 +967,7 @@ async fn proxy_fallback(
         ResolvedModel {
             model: String::new(),
             target_url: String::new(),
-            api_key: String::new(),
+            api_keys: Vec::new(),
             thinking_effort: String::new(),
         }
     };
@@ -960,6 +993,15 @@ async fn proxy_fallback(
         return (StatusCode::BAD_GATEWAY, "No API URL configured for this model. Please configure the provider in the proxy app.").into_response();
     }
 
+    if resolved.api_keys.is_empty() {
+        eprintln!("  error: no enabled API key for this provider");
+        return (StatusCode::SERVICE_UNAVAILABLE, "No enabled API key for this provider. Enable a key in the proxy app.").into_response();
+    }
+    let key_idx = state.key_counter.fetch_add(1, Ordering::Relaxed) % resolved.api_keys.len();
+    let (chosen_key, chosen_label) = &resolved.api_keys[key_idx];
+    let label_display = if chosen_label.is_empty() { format!("#{}", key_idx + 1) } else { chosen_label.clone() };
+    eprintln!("  key index: {}/{} label={} (round-robin)", key_idx, resolved.api_keys.len(), label_display);
+
     let base = resolved.target_url.trim_end_matches('/');
     let url = format!("{}{}", base, parts.uri.path());
 
@@ -967,7 +1009,7 @@ async fn proxy_fallback(
         .client
         .post(&url)
         .header("content-type", "application/json")
-        .header("authorization", format!("Bearer {}", resolved.api_key))
+        .header("authorization", format!("Bearer {}", chosen_key))
         .header(
             "anthropic-version",
             parts
@@ -1004,6 +1046,7 @@ async fn proxy_fallback(
             model: model.to_string(),
             status: raw_status,
             thinking: thinking_log.clone(),
+            key_label: label_display.clone(),
         };
         let mut logs = state.logs.write().unwrap_or_else(|e| e.into_inner());
         logs.push(entry);
@@ -1043,6 +1086,7 @@ fn start_server() -> Result<(), String> {
                 .build()
                 .map_err(|e| format!("Failed to create HTTP client: {}", e))?,
             logs: RwLock::new(Vec::new()),
+            key_counter: AtomicUsize::new(0),
         });
 
         let app = Router::new()

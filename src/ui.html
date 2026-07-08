@@ -367,6 +367,17 @@ async function init() {
   const r = await fetch('/api/config');
   cfg = await r.json();
   if (!cfg.providers) cfg.providers = [];
+  (cfg.providers||[]).forEach(p => {
+    const hasKeys = Array.isArray(p.api_keys) && p.api_keys.some(k => (k.key||'').trim());
+    if (!hasKeys && p.api_key && p.api_key.trim()) {
+      p.api_keys = [{key: p.api_key, label:'', enabled:true}];
+      p.api_key = '';
+    } else if (!Array.isArray(p.api_keys) || !p.api_keys.length) {
+      p.api_keys = [{key:'', label:'', enabled:true}];
+    } else {
+      p.api_keys.forEach(k => { if (k.label === undefined) k.label = ''; });
+    }
+  });
   render();
 }
 
@@ -406,7 +417,24 @@ function render() {
     });
 
     const safeUrl = (p.target_url||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
-    const safeKey = (p.api_key||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+    const keys = Array.isArray(p.api_keys) ? p.api_keys : [];
+    const keysHtml = keys.map((k, ki) => {
+      const safeK = (k.key||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+      const safeL = (k.label||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+      const on = k.enabled !== false;
+      return `
+        <div class="flex items-center gap-2">
+          <input type="text" class="input input-bordered input-sm w-20" value="${safeL}" onchange="cfg.providers[${pi}].api_keys[${ki}].label=this.value" placeholder="名称" title="自定义名称，用于日志识别（如 01、账号A）">
+          <label class="input input-bordered input-sm flex items-center gap-1 flex-1 min-w-0">
+            <input type="password" class="grow min-w-0" value="${safeK}" onchange="cfg.providers[${pi}].api_keys[${ki}].key=this.value" placeholder="API 密钥">
+            <span class="cursor-pointer text-xs opacity-40 hover:opacity-80 select-none" onclick="toggleKeyAt(this)">显示</span>
+          </label>
+          <button class="btn btn-xs ${on?'btn-ghost opacity-70 text-accent':'btn-ghost opacity-30'}" onclick="toggleKeyEnabled(${pi},${ki})" title="${on?'已启用，点击禁用':'已禁用，点击启用'}">${on?'启用中':'已禁用'}</button>
+          <button class="btn btn-ghost btn-xs btn-square opacity-30 hover:opacity-100 hover:text-error" onclick="delKey(${pi},${ki})" title="删除">
+            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+          </button>
+        </div>`;
+    }).join('');
     const providerTag = detectProvider(p.target_url);
     const thinkOpts = getThinkingOptions(p.target_url).map(v =>
       '<option value="'+v+'" '+(p.thinking_effort===v||(v===''&&!p.thinking_effort)?'selected':'')+'>'+THINKING_LABELS[v]+'</option>'
@@ -420,12 +448,13 @@ function render() {
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
           </button>
         </div>
-        <div class="flex gap-2">
-          <input type="text" class="input input-bordered input-sm flex-1 min-w-0" value="${safeUrl}" onchange="cfg.providers[${pi}].target_url=this.value;render()" placeholder="API 地址">
-          <label class="input input-bordered input-sm flex items-center gap-1 flex-1 min-w-0">
-            <input type="password" class="grow min-w-0" value="${safeKey}" onchange="cfg.providers[${pi}].api_key=this.value" placeholder="API 密钥">
-            <span class="cursor-pointer text-xs opacity-40 hover:opacity-80 select-none" onclick="toggleKeyAt(this)">显示</span>
-          </label>
+        <input type="text" class="input input-bordered input-sm flex-1 min-w-0" value="${safeUrl}" onchange="cfg.providers[${pi}].target_url=this.value;render()" placeholder="API 地址">
+        <div class="flex flex-col gap-1">
+          <div class="flex items-center justify-between">
+            <span class="text-xs opacity-40">API 密钥（轮询调用）</span>
+            <button class="btn btn-ghost btn-xs text-slate-blue opacity-60 hover:opacity-100" onclick="addKey(${pi})">+ 添加密钥</button>
+          </div>
+          ${keysHtml}
         </div>
         <div class="flex flex-col gap-1">
           <div class="flex items-center justify-between">
@@ -485,13 +514,14 @@ function applyPreset(id) {
   document.body.style.overflow = '';
   cfg.providers = cfg.providers || [];
   if (id === 'custom') {
-    cfg.providers.push({target_url:'', api_key:'', models:[], thinking_effort:''});
+    cfg.providers.push({target_url:'', api_key:'', api_keys:[{key:'',label:'',enabled:true}], models:[], thinking_effort:''});
   } else {
     const preset = PRESETS.find(p => p.id === id);
     if (!preset) return;
     cfg.providers.push({
       target_url: preset.url,
       api_key: '',
+      api_keys: [{key:'',label:'',enabled:true}],
       models: preset.models.map(name => ({name, to_1m: 'auto'})),
       thinking_effort: '',
     });
@@ -521,8 +551,9 @@ function delModel(pi, mi) {
 
 async function testProvider(pi) {
   const p = cfg.providers[pi];
-  if (!p.target_url || !p.api_key || !p.models || !p.models.length || !p.models[0].name) {
-    showTestResult(pi, false, '请填写 API 地址、密钥和至少一个模型名。');
+  const testKey = ((p.api_keys||[]).find(k => k.enabled !== false && (k.key||'').trim())) || (p.api_key ? {key:p.api_key} : null);
+  if (!p.target_url || !testKey || !p.models || !p.models.length || !p.models[0].name) {
+    showTestResult(pi, false, '请填写 API 地址、至少一个启用的密钥和模型名。');
     return;
   }
   const btn = document.getElementById('test-btn-' + pi);
@@ -531,7 +562,7 @@ async function testProvider(pi) {
   try {
     const r = await fetch('/api/test', {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({target_url: p.target_url, api_key: p.api_key, model: p.models[0].name})
+      body: JSON.stringify({target_url: p.target_url, api_key: testKey.key, model: p.models[0].name})
     });
     const d = await r.json();
     showTestResult(pi, d.ok, d.message);
@@ -574,6 +605,23 @@ function toggleKeyAt(span) {
   const input = span.parentElement.querySelector('input');
   input.type = input.type === 'password' ? 'text' : 'password';
   span.textContent = input.type === 'password' ? '显示' : '隐藏';
+}
+
+function addKey(pi) {
+  cfg.providers[pi].api_keys = cfg.providers[pi].api_keys || [];
+  cfg.providers[pi].api_keys.push({key:'', label:'', enabled:true});
+  render();
+}
+
+function delKey(pi, ki) {
+  cfg.providers[pi].api_keys.splice(ki, 1);
+  render();
+}
+
+function toggleKeyEnabled(pi, ki) {
+  const k = cfg.providers[pi].api_keys[ki];
+  k.enabled = k.enabled === false ? true : false;
+  render();
 }
 
 function showMsg(text, cls) {
@@ -667,10 +715,12 @@ async function loadLogs() {
         : l.thinking === 'high' ? '<span class="opacity-60 text-info flex-shrink-0">标准</span>'
         : l.thinking === 'max' ? '<span class="opacity-60 text-accent flex-shrink-0">深度</span>'
         : '';
+      const keyTag = l.key_label ? `<span class="px-1.5 rounded bg-base-content/10 opacity-70 flex-shrink-0" title="使用的密钥">${esc(l.key_label)}</span>` : '';
       return `<div class="log-row flex items-center gap-2">
         <span class="opacity-40 flex-shrink-0">${esc(l.time)}</span>
         <span class="w-1.5 h-1.5 rounded-full flex-shrink-0 ${ok?'bg-accent':'bg-error'}"></span>
         <span class="truncate font-medium">${esc(l.model)}</span>
+        ${keyTag}
         ${thinkTag}
         <span class="opacity-40 flex-shrink-0">${ok ? '成功' : l.status}</span>
       </div>`;
