@@ -424,7 +424,7 @@ function render() {
       const on = k.enabled !== false;
       return `
         <div class="flex items-center gap-2">
-          <input type="text" class="input input-bordered input-sm w-20" value="${safeL}" onchange="cfg.providers[${pi}].api_keys[${ki}].label=this.value" placeholder="名称" title="自定义名称，用于日志识别（如 01、账号A）">
+          <input type="text" class="input input-bordered input-sm w-40" value="${safeL}" onchange="cfg.providers[${pi}].api_keys[${ki}].label=this.value" placeholder="名称" title="自定义名称，用于日志识别（如 01、账号A）">
           <label class="input input-bordered input-sm flex items-center gap-1 flex-1 min-w-0">
             <input type="password" class="grow min-w-0" value="${safeK}" onchange="cfg.providers[${pi}].api_keys[${ki}].key=this.value" placeholder="API 密钥">
             <span class="cursor-pointer text-xs opacity-40 hover:opacity-80 select-none" onclick="toggleKeyAt(this)">显示</span>
