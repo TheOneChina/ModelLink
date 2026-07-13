@@ -155,7 +155,8 @@ pub fn run() {
             commands::config_hash,
             commands::test_provider,
             commands::apply_to_claude,
-            commands::get_logs
+            commands::get_logs,
+            commands::force_quit_and_relaunch
         ])
         .run(tauri::generate_context!())
         .expect("error while running ModelLink");

@@ -30,6 +30,9 @@ pub struct Config {
     /// 空值不序列化 —— 未用过应用功能时文件输出与 v1 格式完全一致。
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub last_applied_hash: String,
+    /// 2.0 新增：上次应用的时间（Unix 秒，字符串）。空值不序列化，同上。
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub last_applied_at: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Default)]
@@ -126,7 +129,7 @@ pub fn save_config_file(config: &Config) -> Result<(), String> {
 pub fn canonical_hash(config: &Config) -> String {
     let canon = Config {
         providers: config.providers.clone(),
-        last_applied_hash: String::new(),
+        ..Default::default()
     };
     let json = serde_json::to_string(&canon).unwrap_or_default();
     let mut h: u64 = 0xcbf29ce484222325;
@@ -248,7 +251,7 @@ mod tests {
                 ),
                 provider("https://b.example.com", "key-b", vec![model("model-b1", "")], "off"),
             ],
-            last_applied_hash: String::new(),
+            ..Default::default()
         }
     }
 
@@ -279,7 +282,7 @@ mod tests {
                 vec![model("", "auto"), model("real", "")],
                 "",
             )],
-            last_applied_hash: String::new(),
+            ..Default::default()
         };
         let flat = flatten_config(&cfg);
         assert_eq!(flat.len(), 1);
@@ -292,7 +295,7 @@ mod tests {
         let models: Vec<ModelEntry> = (0..12).map(|i| model(&format!("m{i}"), "")).collect();
         let cfg = Config {
             providers: vec![provider("https://a.example.com", "k", models, "")],
-            last_applied_hash: String::new(),
+            ..Default::default()
         };
         let flat = flatten_config(&cfg);
         assert_eq!(flat.len(), 8);
@@ -363,7 +366,7 @@ mod tests {
                 vec![model("m1", "auto")],
                 "",
             )],
-            last_applied_hash: String::new(),
+            ..Default::default()
         };
         let out = serde_json::to_string_pretty(&cfg).unwrap();
         // v1 输出形状：仅 providers 一个顶层键；模型条目为 { name, to_1m }

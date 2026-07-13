@@ -180,3 +180,44 @@
     background: rgba(128, 128, 128, 0.35);
   }
 }
+
+/* ============ 防篡改水印（useWatermark 维护，!important 锚定样式） ============ */
+.ml-wm {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  padding: 8px 10px 12px !important;
+  font-size: 9.5px !important;
+  line-height: 1.5 !important;
+  color: var(--faint) !important;
+  pointer-events: none !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
+  clip-path: none !important;
+  filter: none !important;
+  transform: none !important;
+  overflow: visible !important;
+  height: auto !important;
+  width: auto !important;
+}
+/* 宿主（侧栏）被移除时的兜底形态：v1 式底部固定条 */
+.ml-wm-fixed {
+  position: fixed !important;
+  bottom: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  z-index: 2147483647 !important;
+  text-align: center !important;
+  padding: 10px 16px !important;
+  font-size: 12px !important;
+  background: var(--sidebar) !important;
+  border-top: 1px solid var(--border) !important;
+  color: var(--muted-foreground) !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation: none !important;
+  }
+}

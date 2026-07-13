@@ -268,7 +268,7 @@ mod tests {
                 ],
                 thinking_effort: te.into(),
             }],
-            last_applied_hash: String::new(),
+            ..Default::default()
         }
     }
 

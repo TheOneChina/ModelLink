@@ -23,13 +23,12 @@ pub fn get_config(state: State<'_, Arc<ProxyState>>) -> Config {
 
 #[tauri::command]
 pub fn save_config(state: State<'_, Arc<ProxyState>>, mut config: Config) -> Result<(), String> {
-    // applied 哈希由后端专管（apply_to_claude 里更新），忽略前端回传值防止漂移。
-    config.last_applied_hash = state
-        .config
-        .read()
-        .unwrap_or_else(|e| e.into_inner())
-        .last_applied_hash
-        .clone();
+    // applied 哈希/时间由后端专管（apply_to_claude 里更新），忽略前端回传值防止漂移。
+    {
+        let cur = state.config.read().unwrap_or_else(|e| e.into_inner());
+        config.last_applied_hash = cur.last_applied_hash.clone();
+        config.last_applied_at = cur.last_applied_at.clone();
+    }
     save_config_file(&config)?;
     *state.config.write().unwrap_or_else(|e| e.into_inner()) = config;
     eprintln!("[config] saved");
@@ -137,6 +136,10 @@ pub async fn apply_to_claude(state: State<'_, Arc<ProxyState>>) -> Result<String
 
     // design.md §8：apply 成功后持久化 last_applied_hash（写盘失败不回滚 apply，仅打日志）
     config.last_applied_hash = canonical_hash(&config);
+    config.last_applied_at = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs().to_string())
+        .unwrap_or_default();
     if let Err(e) = save_config_file(&config) {
         eprintln!("[apply] WARN: persist last_applied_hash failed: {}", e);
     }
@@ -149,4 +152,42 @@ pub async fn apply_to_claude(state: State<'_, Arc<ProxyState>>) -> Result<String
 #[tauri::command]
 pub fn get_logs(state: State<'_, Arc<ProxyState>>) -> Vec<LogEntry> {
     state.logs.read().unwrap_or_else(|e| e.into_inner()).clone()
+}
+
+/// 自动更新装完后的可靠重启（移植 ClaudeCN）：兜底 Tauri v2 在 macOS 上 relaunch()
+/// 的已知 bug（装好新包却没能重启）。spawn 一个脱离的 helper 轮询父进程退出后再 `open -n` 重开。
+#[tauri::command]
+pub fn force_quit_and_relaunch(app: tauri::AppHandle) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        let current_exe =
+            std::env::current_exe().map_err(|e| format!("current_exe failed: {e}"))?;
+        let ppid = std::process::id();
+        let app_bundle = current_exe
+            .ancestors()
+            .find(|p| p.extension().and_then(|s| s.to_str()) == Some("app"))
+            .ok_or_else(|| "current_exe 祖先里没有 .app bundle".to_string())?;
+        let escaped = format!("'{}'", app_bundle.to_string_lossy().replace('\'', "'\\''"));
+        let cmd = format!(
+            "i=0; while kill -0 {ppid} 2>/dev/null && [ $i -lt 100 ]; do sleep 0.1; i=$((i+1)); done; sleep 0.3; open -n {escaped}"
+        );
+        std::process::Command::new("sh")
+            .arg("-c")
+            .arg(&cmd)
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+            .map_err(|e| format!("spawn relaunch helper failed: {e}"))?;
+        std::thread::spawn(move || {
+            std::thread::sleep(std::time::Duration::from_millis(200));
+            app.exit(0);
+        });
+        Ok(())
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        // windows/linux 上 plugin-process 的 relaunch 没有那个 bug；这里直接 restart（不再返回）
+        app.restart()
+    }
 }
