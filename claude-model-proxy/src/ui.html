@@ -1,0 +1,861 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ModelLink — Winhao学AI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/daisyui@5" rel="stylesheet" type="text/css" />
+<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+<script>
+(function(){
+  const p = localStorage.getItem('theme') || 'system';
+  const d = p === 'dark' || (p === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  document.documentElement.setAttribute('data-theme', d ? 'dark' : 'light');
+})();
+</script>
+<style type="text/tailwindcss">
+@theme {
+  --font-sans: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+  --color-claude: #D97757;
+  --color-claude-hover: #c4684a;
+  --color-claude-muted: #D9775720;
+  --color-leaf: #4db8a0;
+  --color-slate-blue: #6a9bcc;
+}
+</style>
+<style>
+[data-theme="dark"] {
+  --color-primary: #D97757;
+  --color-accent: #4db8a0;
+  --color-secondary: #6a9bcc;
+}
+[data-theme="light"] {
+  --color-primary: #D97757;
+  --color-accent: #3da890;
+  --color-secondary: #5a89b8;
+}
+* { font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif; }
+body { min-height: 100vh; overflow-y: scroll; scrollbar-gutter: stable; padding-bottom: 120px; }
+[data-theme="dark"] { --action-bar-bg: 29,35,42; }
+[data-theme="light"] { --action-bar-bg: 250,249,245; }
+
+/* Loading */
+#loading { position:fixed; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; z-index:9999; transition:opacity .4s ease; }
+[data-theme="dark"] #loading { background:#1d232a; }
+[data-theme="light"] #loading { background:#faf9f5; }
+#loading.hide { opacity:0; pointer-events:none; }
+#loading .mark { width:48px; height:48px; border-radius:50%; background:#D97757; animation:pulse-mark 1.6s ease-in-out infinite; }
+#loading .tip { font-size:13px; margin-top:20px; letter-spacing:0.02em; }
+[data-theme="dark"] #loading .tip { color:#9ca3af; }
+[data-theme="light"] #loading .tip { color:#6b7280; }
+@keyframes pulse-mark { 0%,100%{transform:scale(1);opacity:1} 50%{transform:scale(1.15);opacity:.7} }
+
+/* Transitions */
+.page-transition { transition: opacity .2s ease, transform .2s ease; }
+.page-enter { opacity:0; transform:translateY(8px); }
+
+/* Cards */
+.provider-card { transition: box-shadow .2s ease, border-color .2s ease; }
+[data-theme="dark"] .provider-card { border:1px solid rgba(255,255,255,.06); }
+[data-theme="light"] .provider-card { border:1px solid rgba(0,0,0,.06); }
+.provider-card:hover { border-color: #D9775740; }
+
+/* Buttons */
+.btn { transition: all .15s ease; }
+.btn:active:not(:disabled) { transform: scale(0.97); }
+
+/* Model row */
+
+/* Empty state */
+.empty-state { display:flex; flex-direction:column; align-items:center; padding:3rem 1rem; }
+.empty-dot { width:56px; height:56px; border-radius:50%; background:var(--color-claude-muted); display:flex; align-items:center; justify-content:center; margin-bottom:1rem; }
+
+/* Log entry */
+.log-row { padding: 4px 0; border-bottom: 1px solid rgba(128,128,128,.08); }
+.log-row:last-child { border-bottom:none; }
+
+/* Settings row */
+.setting-row { display:flex; align-items:center; justify-content:space-between; padding: 14px 0; }
+.setting-row + .setting-row { border-top: 1px solid rgba(128,128,128,.1); }
+
+/* Scrollbar */
+::-webkit-scrollbar { width:6px; }
+::-webkit-scrollbar-track { background:transparent; }
+::-webkit-scrollbar-thumb { background:rgba(128,128,128,.2); border-radius:3px; }
+::-webkit-scrollbar-thumb:hover { background:rgba(128,128,128,.35); }
+
+/* Toast */
+#toast-container { position:fixed; top:16px; right:16px; z-index:9000; display:flex; flex-direction:column; gap:8px; pointer-events:none; }
+.toast-item { pointer-events:auto; display:flex; align-items:center; gap:10px; padding:12px 18px; border-radius:12px; font-size:14px; font-weight:500; max-width:360px; animation: toast-in .25s ease; backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); }
+.toast-item.removing { animation: toast-out .2s ease forwards; }
+.toast-success { background:rgba(120,140,93,.15); border:1px solid rgba(120,140,93,.3); color:#4db8a0; }
+.toast-error { background:rgba(238,85,85,.12); border:1px solid rgba(238,85,85,.25); color:#e55; }
+.toast-warning { background:rgba(212,168,67,.12); border:1px solid rgba(212,168,67,.25); color:#d4a843; }
+.toast-dot { width:6px; height:6px; border-radius:50%; flex-shrink:0; }
+.toast-success .toast-dot { background:#4db8a0; }
+.toast-error .toast-dot { background:#e55; }
+.toast-warning .toast-dot { background:#d4a843; }
+@keyframes toast-in { from { opacity:0; transform:translateX(20px); } to { opacity:1; transform:translateX(0); } }
+@keyframes toast-out { from { opacity:1; transform:translateX(0); } to { opacity:0; transform:translateX(20px); } }
+
+/* Watermark bar - bottom fixed */
+.wm-bar {
+  position: fixed !important;
+  bottom: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  text-align: center !important;
+  padding: 10px 16px !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  letter-spacing: 0.03em !important;
+  z-index: 2147483647 !important;
+  pointer-events: none !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
+  backdrop-filter: blur(10px) !important;
+  -webkit-backdrop-filter: blur(10px) !important;
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  height: auto !important;
+  width: auto !important;
+  transform: none !important;
+  clip: auto !important;
+  clip-path: none !important;
+  filter: none !important;
+  overflow: visible !important;
+}
+[data-theme="dark"] .wm-bar {
+  background: rgba(29, 35, 42, 0.95) !important;
+  color: rgba(255, 255, 255, 0.85) !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.15) !important;
+}
+[data-theme="light"] .wm-bar {
+  background: rgba(250, 249, 245, 0.95) !important;
+  color: rgba(0, 0, 0, 0.7) !important;
+  border-top: 1px solid rgba(0, 0, 0, 0.12) !important;
+}
+
+/* Watermark header badge */
+.wm-badge {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  font-size: 11px !important;
+  font-weight: 500 !important;
+  padding: 3px 10px !important;
+  border-radius: 20px !important;
+  pointer-events: none !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+[data-theme="dark"] .wm-badge {
+  background: rgba(255,255,255,0.1) !important;
+  color: rgba(255,255,255,0.7) !important;
+}
+[data-theme="light"] .wm-badge {
+  background: rgba(0,0,0,0.06) !important;
+  color: rgba(0,0,0,0.55) !important;
+}
+
+</style>
+</head>
+<body class="p-6">
+
+<div id="loading">
+  <div class="mark"></div>
+  <div class="tip" id="loading-tip">正在启动...</div>
+</div>
+<div id="toast-container"></div>
+
+<div class="max-w-2xl mx-auto" style="opacity:0" id="app-root">
+
+  <!-- Header: Main -->
+  <div class="flex items-center justify-between mb-6" id="header-main">
+    <div class="flex items-center gap-3">
+      <h1 class="text-xl font-semibold tracking-tight">ModelLink</h1>
+      <span class="inline-flex items-center gap-1.5 text-sm font-medium px-2.5 py-0.5 rounded-full" style="background:var(--color-claude-muted);color:#D97757;">
+        <span class="w-1.5 h-1.5 rounded-full bg-[#D97757] animate-pulse"></span>
+        运行中
+      </span>
+      <span class="wm-badge" data-wm="static">Winhao学AI · 免费软件</span>
+    </div>
+    <button class="btn btn-ghost btn-sm btn-circle opacity-60 hover:opacity-100 transition-opacity" onclick="switchPage()" title="设置">
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    </button>
+  </div>
+
+  <!-- Header: Settings -->
+  <div class="flex items-center gap-3 mb-6 hidden" id="header-settings">
+    <button class="btn btn-ghost btn-sm btn-circle opacity-60 hover:opacity-100 transition-opacity" onclick="switchPage()" title="返回">
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><polyline points="12 19 5 12 12 5"/></svg>
+    </button>
+    <h1 class="text-xl font-semibold tracking-tight">设置</h1>
+  </div>
+
+  <!-- Main Page -->
+  <div id="page-main" class="page-transition">
+    <div id="providers" class="flex flex-col gap-4 mb-4"></div>
+
+    <div id="empty-state" class="empty-state" style="display:none">
+      <div class="empty-dot">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#D97757" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+      </div>
+      <div class="text-sm font-medium mb-1">尚未配置服务商</div>
+      <div class="text-xs opacity-50 mb-4">添加一个 API 服务商开始使用</div>
+    </div>
+
+    <button class="btn btn-ghost btn-sm btn-block border-dashed border-base-content/15 mb-5 hover:border-[#D97757] hover:text-[#D97757] transition-colors" onclick="addProvider()">
+      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+      添加服务商
+    </button>
+
+  </div>
+
+  <!-- Settings Page -->
+  <div id="page-settings" class="hidden page-transition">
+    <div class="card bg-base-200 mb-4 provider-card">
+      <div class="card-body p-5">
+        <div class="setting-row" style="padding-top:0">
+          <div>
+            <div class="text-base font-medium">外观</div>
+            <div class="text-xs opacity-50 mt-0.5">切换颜色模式</div>
+          </div>
+          <div class="join">
+            <button class="btn btn-xs join-item theme-btn" data-val="light" onclick="setTheme('light')">亮色</button>
+            <button class="btn btn-xs join-item theme-btn" data-val="system" onclick="setTheme('system')">跟随系统</button>
+            <button class="btn btn-xs join-item theme-btn" data-val="dark" onclick="setTheme('dark')">深色</button>
+          </div>
+        </div>
+        <div class="setting-row" style="padding-bottom:0">
+          <div>
+            <div class="text-base font-medium">开机自启</div>
+            <div class="text-xs opacity-50 mt-0.5">登录时自动启动代理</div>
+          </div>
+          <input type="checkbox" class="toggle toggle-sm toggle-accent" id="autostart-toggle" onchange="toggleAutostart(this.checked)">
+        </div>
+      </div>
+    </div>
+
+    <div class="card bg-base-200 provider-card">
+      <div class="card-body p-5">
+        <div class="flex items-center justify-between mb-3">
+          <div class="text-base font-medium">请求日志</div>
+          <button class="btn btn-xs btn-ghost opacity-60 hover:opacity-100" onclick="loadLogs()">刷新</button>
+        </div>
+        <div id="logs-area" class="bg-base-300/50 rounded-xl p-3 h-64 overflow-y-auto text-xs font-mono">
+          <div class="flex items-center justify-center h-full opacity-40">暂无记录</div>
+        </div>
+      </div>
+    </div>
+
+    <p class="text-center text-xs opacity-30 mt-5">~/.claude-model-proxy/config.json</p>
+    <p class="text-center text-xs opacity-70 mt-3" style="user-select:none">Winhao学AI · 抖音搜索同名 · 抖音号: 54927876676<br>本软件完全免费，不可商业化</p>
+  </div>
+</div>
+
+<div id="action-bar" class="fixed bottom-[36px] left-0 right-0 z-50 pointer-events-none" style="display:none">
+  <div class="max-w-2xl mx-auto px-6 pb-3 pointer-events-auto">
+    <div class="grid grid-cols-2 gap-3 p-3 rounded-2xl shadow-lg backdrop-blur-lg" style="background:rgba(var(--action-bar-bg),0.85);border:1px solid rgba(128,128,128,0.12)">
+      <button class="btn btn-neutral h-11 text-sm" onclick="saveConfig()">保存配置</button>
+      <button class="btn h-11 text-sm text-white" style="background:#D97757;border:none" onmouseover="this.style.background='#c4684a'" onmouseout="this.style.background='#D97757'" onclick="applyToClaude()">应用到 Claude Desktop</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const MAX_MODELS = 8;
+const ANTHROPIC_SLOTS = [
+  'claude-3-opus-latest','claude-3-5-sonnet-latest','claude-3-sonnet-20240229','claude-3-haiku-20240307',
+  'claude-3-5-haiku-latest','claude-3-opus-20240229','claude-3-5-sonnet-20241022','claude-3-5-sonnet-20240620',
+];
+function globalModelStart(pi) {
+  let c = 0;
+  for (let i = 0; i < pi; i++) c += (cfg.providers?.[i]?.models || []).length;
+  return c;
+}
+let cfg = {};
+
+const PRESETS = [
+  {
+    id: 'deepseek', name: 'DeepSeek',
+    url: 'https://api.deepseek.com/anthropic',
+    models: ['deepseek-v4-pro', 'deepseek-v4-flash'],
+    thinkingOptions: ['', 'off', 'high', 'max'],
+  },
+  {
+    id: 'kimi-code', name: 'Kimi Code（订阅制）',
+    url: 'https://api.kimi.com/coding/',
+    models: ['Kimi-k2.6'],
+    thinkingOptions: ['', 'off'],
+  },
+  {
+    id: 'kimi', name: 'Kimi 开放平台（按量付费）',
+    url: 'https://api.moonshot.cn/anthropic',
+    models: ['kimi-k2.5', 'kimi-k2.6'],
+    thinkingOptions: ['', 'off'],
+  },
+  {
+    id: 'minimax', name: 'MiniMax',
+    url: 'https://api.minimaxi.com/anthropic',
+    models: ['MiniMax-M2.7', 'MiniMax-M2.7-highspeed'],
+    thinkingOptions: ['', 'off'],
+  },
+  {
+    id: 'qwen-coding', name: '百炼 Coding Plan',
+    url: 'https://coding.dashscope.aliyuncs.com/apps/anthropic',
+    models: ['qwen3.6-plus', 'qwen3-coder-next'],
+    thinkingOptions: ['', 'off'],
+  },
+  {
+    id: 'qwen-token', name: '百炼 Token Plan',
+    url: 'https://token-plan.cn-beijing.maas.aliyuncs.com/apps/anthropic',
+    models: ['qwen3.6-plus', 'qwen3-coder-next', 'glm-5', 'MiniMax-M2.5'],
+    thinkingOptions: ['', 'off'],
+  },
+  {
+    id: 'glm', name: 'GLM（智谱）',
+    url: 'https://open.bigmodel.cn/api/anthropic',
+    models: ['glm-5.1', 'glm-5-turbo', 'glm-4.7', 'glm-4.5-air'],
+    thinkingOptions: ['', 'off'],
+  },
+  {
+    id: 'mimo', name: 'mimo',
+    url: 'https://api.xiaomimimo.com/anthropic',
+    models: ['mimo-v2.5-pro', 'mimo-v2.5', 'mimo-v2-pro', 'mimo-v2-omni', 'mimo-v2-flash'],
+    thinkingOptions: ['', 'off'],
+  },
+];
+
+function matchPreset(url) {
+  if (!url) return null;
+  const u = url.toLowerCase();
+  for (const p of PRESETS) {
+    try {
+      const host = new URL(p.url).hostname;
+      if (u.includes(host)) return p;
+    } catch(e) {}
+  }
+  return null;
+}
+
+function getThinkingOptions(url) {
+  return matchPreset(url)?.thinkingOptions || ['', 'off', 'high', 'max'];
+}
+
+function getPresetModels(url) {
+  return matchPreset(url)?.models || [];
+}
+
+const THINKING_LABELS = {
+  '': '默认（不干预）',
+  'off': '关闭思考',
+  'high': '标准 (high)',
+  'max': '深度 (max)',
+};
+
+function totalModels() {
+  return (cfg.providers || []).reduce((s, p) => s + (p.models || []).length, 0);
+}
+
+async function init() {
+  const r = await fetch('/api/config');
+  cfg = await r.json();
+  if (!cfg.providers) cfg.providers = [];
+  render();
+}
+
+function render() {
+  const el = document.getElementById('providers');
+  const empty = document.getElementById('empty-state');
+  el.innerHTML = '';
+  const hasProviders = cfg.providers && cfg.providers.length > 0;
+  empty.style.display = hasProviders ? 'none' : '';
+  if (!hasProviders) return;
+
+  cfg.providers.forEach((p, pi) => {
+    const card = document.createElement('div');
+    card.className = 'card bg-base-200 provider-card';
+    const presetModels = getPresetModels(p.target_url);
+    const gBase = globalModelStart(pi);
+    let modelsHtml = '';
+    (p.models || []).forEach((m, mi) => {
+      const gIdx = gBase + mi;
+      const slotName = gIdx < ANTHROPIC_SLOTS.length ? ANTHROPIC_SLOTS[gIdx] : '';
+      const safeVal = (m.name||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+      const dlId = 'ml-'+pi+'-'+mi;
+      const modelInput = `<input type="text" class="input input-bordered input-sm flex-1 min-w-0" list="${dlId}" value="${safeVal}" onchange="cfg.providers[${pi}].models[${mi}].name=this.value" placeholder="输入或选择模型">` +
+        (presetModels.length > 0 ? `<datalist id="${dlId}">${presetModels.map(pm => '<option value="'+pm+'">').join('')}</datalist>` : '');
+      modelsHtml += `
+        <div class="flex items-center gap-1.5">
+          ${modelInput}
+          <label class="flex items-center gap-1 cursor-pointer flex-shrink-0 select-none">
+            <input type="checkbox" class="toggle toggle-xs toggle-accent" ${m.to_1m?'checked':''} onchange="cfg.providers[${pi}].models[${mi}].to_1m=this.checked?'auto':''">
+            <span class="text-xs opacity-40">1M</span>
+          </label>
+          <button class="btn btn-ghost btn-xs btn-square opacity-20 hover:opacity-80 hover:text-error" onclick="delModel(${pi},${mi})">
+            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+        ${slotName ? `<div class="text-[11px] opacity-25 ml-1 -mt-0.5 mb-1">Claude 中显示为: ${slotName}</div>` : ''}`;
+    });
+
+    const safeUrl = (p.target_url||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+    const safeKey = (p.api_key||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+    const providerTag = detectProvider(p.target_url);
+    const thinkOpts = getThinkingOptions(p.target_url).map(v =>
+      '<option value="'+v+'" '+(p.thinking_effort===v||(v===''&&!p.thinking_effort)?'selected':'')+'>'+THINKING_LABELS[v]+'</option>'
+    ).join('');
+    card.innerHTML = `
+      <div class="card-body p-4 gap-3">
+        <div class="flex items-center gap-2">
+          <h3 class="text-sm font-semibold flex-1">${providerTag || '服务商 '+(pi+1)}</h3>
+          <select class="select select-bordered select-xs w-28" onchange="cfg.providers[${pi}].thinking_effort=this.value" title="推理强度">${thinkOpts}</select>
+          <button class="btn btn-ghost btn-xs opacity-30 hover:opacity-100 hover:text-error" onclick="delProvider(${pi})" title="删除">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+          </button>
+        </div>
+        <div class="flex gap-2">
+          <input type="text" class="input input-bordered input-sm flex-1 min-w-0" value="${safeUrl}" onchange="cfg.providers[${pi}].target_url=this.value;render()" placeholder="API 地址">
+          <label class="input input-bordered input-sm flex items-center gap-1 flex-1 min-w-0">
+            <input type="password" class="grow min-w-0" value="${safeKey}" onchange="cfg.providers[${pi}].api_key=this.value" placeholder="API 密钥">
+            <span class="cursor-pointer text-xs opacity-40 hover:opacity-80 select-none" onclick="toggleKeyAt(this)">显示</span>
+          </label>
+        </div>
+        <div class="flex flex-col gap-1">
+          <div class="flex items-center justify-between">
+            <span class="text-xs opacity-40">模型</span>
+            <button class="btn btn-xs btn-ghost text-slate-blue opacity-60 hover:opacity-100" onclick="testProvider(${pi})" id="test-btn-${pi}">
+              <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+              测试连接
+            </button>
+          </div>
+          <div id="test-result-${pi}" class="text-xs hidden"></div>
+          ${modelsHtml}
+          <button class="btn btn-ghost btn-xs border-dashed border-base-content/10 opacity-40 hover:opacity-80 hover:border-[#D97757] hover:text-[#D97757]" onclick="addModel(${pi})">+ 添加模型</button>
+        </div>
+      </div>`;
+    el.appendChild(card);
+  });
+}
+
+function addProvider() {
+  showPresetPicker();
+}
+
+function showPresetPicker() {
+  const existing = document.getElementById('preset-modal');
+  if (existing) existing.remove();
+  const modal = document.createElement('div');
+  modal.id = 'preset-modal';
+  modal.style.cssText = 'position:fixed;inset:0;z-index:8000;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.5);backdrop-filter:blur(4px);animation:toast-in .15s ease';
+  const presetButtons = PRESETS.map(p =>
+    `<button class="btn btn-ghost justify-start gap-3 h-14 text-base" onclick="applyPreset('${p.id}')">
+      <span class="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold" style="background:var(--color-claude-muted);color:#D97757">${p.name[0]}</span>
+      <div class="text-left min-w-0 flex-1"><div class="font-medium">${p.name}</div><div class="text-xs opacity-50 truncate">${p.url}</div></div>
+    </button>`
+  ).join('');
+  modal.innerHTML = `
+    <div class="card bg-base-200 w-96 shadow-2xl" style="border:1px solid rgba(255,255,255,.08);max-height:80vh;display:flex;flex-direction:column">
+      <div class="card-body p-5 flex flex-col min-h-0">
+        <h3 class="text-base font-semibold mb-3 flex-shrink-0">选择服务商</h3>
+        <div class="flex flex-col gap-1 overflow-y-auto overflow-x-hidden min-h-0 flex-1" style="-webkit-overflow-scrolling:touch">
+          ${presetButtons}
+          <div class="divider my-1 opacity-30"></div>
+          <button class="btn btn-ghost justify-start gap-3 h-12 flex-shrink-0" onclick="applyPreset('custom')">
+            <span class="w-8 h-8 rounded-full flex items-center justify-center text-sm opacity-40" style="background:rgba(128,128,128,.15)">?</span>
+            <div class="text-left"><div class="font-medium">自定义</div><div class="text-xs opacity-50">手动填写 API 地址和模型</div></div>
+          </button>
+        </div>
+        <button class="btn btn-ghost btn-sm mt-2 opacity-50 flex-shrink-0" onclick="document.getElementById('preset-modal').remove();document.body.style.overflow=''">取消</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+  document.body.style.overflow = 'hidden';
+  modal.addEventListener('click', e => { if (e.target === modal) { modal.remove(); document.body.style.overflow = ''; } });
+}
+
+function applyPreset(id) {
+  document.getElementById('preset-modal')?.remove();
+  document.body.style.overflow = '';
+  cfg.providers = cfg.providers || [];
+  if (id === 'custom') {
+    cfg.providers.push({target_url:'', api_key:'', models:[], thinking_effort:''});
+  } else {
+    const preset = PRESETS.find(p => p.id === id);
+    if (!preset) return;
+    cfg.providers.push({
+      target_url: preset.url,
+      api_key: '',
+      models: preset.models.map(name => ({name, to_1m: 'auto'})),
+      thinking_effort: '',
+    });
+  }
+  render();
+}
+
+function delProvider(pi) {
+  cfg.providers.splice(pi, 1);
+  render();
+}
+
+function addModel(pi) {
+  if (totalModels() >= MAX_MODELS) {
+    showMsg('所有服务商的模型总数最多 ' + MAX_MODELS + ' 个。', 'alert-warning');
+    return;
+  }
+  cfg.providers[pi].models = cfg.providers[pi].models || [];
+  cfg.providers[pi].models.push({name:'', to_1m:'auto'});
+  render();
+}
+
+function delModel(pi, mi) {
+  cfg.providers[pi].models.splice(mi, 1);
+  render();
+}
+
+async function testProvider(pi) {
+  const p = cfg.providers[pi];
+  if (!p.target_url || !p.api_key || !p.models || !p.models.length || !p.models[0].name) {
+    showTestResult(pi, false, '请填写 API 地址、密钥和至少一个模型名。');
+    return;
+  }
+  const btn = document.getElementById('test-btn-' + pi);
+  btn.innerHTML = '<span class="loading loading-spinner loading-xs"></span>';
+  btn.disabled = true;
+  try {
+    const r = await fetch('/api/test', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({target_url: p.target_url, api_key: p.api_key, model: p.models[0].name})
+    });
+    const d = await r.json();
+    showTestResult(pi, d.ok, d.message);
+  } catch(e) {
+    showTestResult(pi, false, '请求失败。');
+  }
+  btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> 测试';
+  btn.disabled = false;
+}
+
+function showTestResult(pi, ok, msg) {
+  const el = document.getElementById('test-result-' + pi);
+  if (!el) return;
+  const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;');
+  el.innerHTML = '<span class="inline-block w-1.5 h-1.5 rounded-full mr-1 ' + (ok ? 'bg-accent' : 'bg-error') + '"></span>' + esc(msg);
+  el.className = 'text-xs mb-1 ' + (ok ? 'text-accent' : 'text-error');
+  setTimeout(() => { el.className = 'text-xs mb-1 hidden'; }, 6000);
+}
+
+async function saveConfig() {
+  const r = await fetch('/api/config', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(cfg)
+  });
+  const d = await r.json();
+  showMsg(d.ok ? '配置已保存。' : ('错误: ' + d.message), d.ok ? 'alert-success' : 'alert-error');
+}
+
+async function applyToClaude() {
+  await fetch('/api/config', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(cfg)
+  });
+  const r = await fetch('/api/apply', {method:'POST'});
+  const d = await r.json();
+  showMsg(d.ok ? '已应用，Claude Desktop 正在重启...' : ('错误: ' + d.message), d.ok ? 'alert-success' : 'alert-error');
+}
+
+function toggleKeyAt(span) {
+  const input = span.parentElement.querySelector('input');
+  input.type = input.type === 'password' ? 'text' : 'password';
+  span.textContent = input.type === 'password' ? '显示' : '隐藏';
+}
+
+function showMsg(text, cls) {
+  const type = cls.includes('success') ? 'success' : cls.includes('error') ? 'error' : 'warning';
+  const container = document.getElementById('toast-container');
+  const toast = document.createElement('div');
+  toast.className = 'toast-item toast-' + type;
+  toast.innerHTML = '<span class="toast-dot"></span>' + text.replace(/&/g,'&amp;').replace(/</g,'&lt;');
+  container.appendChild(toast);
+  const duration = type === 'error' ? 6000 : 3500;
+  setTimeout(() => {
+    toast.classList.add('removing');
+    setTimeout(() => toast.remove(), 250);
+  }, duration);
+}
+
+function applyTheme(pref) {
+  const dark = pref === 'dark' || (pref === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+  document.querySelectorAll('.theme-btn').forEach(b => {
+    const active = b.dataset.val === pref;
+    b.classList.toggle('btn-primary', active);
+    b.classList.toggle('btn-ghost', !active);
+  });
+}
+
+function setTheme(pref) {
+  localStorage.setItem('theme', pref);
+  applyTheme(pref);
+}
+
+function initTheme() {
+  const pref = localStorage.getItem('theme') || 'system';
+  applyTheme(pref);
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+    if ((localStorage.getItem('theme') || 'system') === 'system') applyTheme('system');
+  });
+}
+
+function detectProvider(url) {
+  if (!url) return '';
+  const u = url.toLowerCase();
+  if (u.includes('deepseek.com')) return 'DeepSeek';
+  if (u.includes('kimi.com')) return 'Kimi Code';
+  if (u.includes('moonshot')) return 'Kimi';
+  if (u.includes('xiaomimimo') || u.includes('mimo')) return 'mimo';
+  if (u.includes('minimaxi.com')) return 'MiniMax';
+  if (u.includes('openai.com')) return 'OpenAI';
+  if (u.includes('openrouter')) return 'OpenRouter';
+  if (u.includes('groq.com')) return 'Groq';
+  if (u.includes('together')) return 'Together';
+  if (u.includes('siliconflow')) return 'SiliconFlow';
+  if (u.includes('baichuan') || u.includes('百川')) return 'Baichuan';
+  if (u.includes('token-plan') && u.includes('aliyun')) return '百炼 Token Plan';
+  if (u.includes('dashscope') || u.includes('aliyun')) return '百炼 Coding Plan';
+  if (u.includes('zhipu') || u.includes('bigmodel')) return 'GLM（智谱）';
+  return '';
+}
+
+async function loadAutostart() {
+  try {
+    const r = await fetch('/api/autostart');
+    const d = await r.json();
+    document.getElementById('autostart-toggle').checked = d.enabled;
+  } catch(e) {}
+}
+
+async function toggleAutostart(enabled) {
+  const r = await fetch('/api/autostart', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({enabled})
+  });
+  const d = await r.json();
+  if (!d.ok) showMsg('Failed: ' + (d.message||''), 'alert-error');
+}
+
+async function loadLogs() {
+  const el = document.getElementById('logs-area');
+  el.innerHTML = '<div class="flex items-center justify-center h-full opacity-40">加载中...</div>';
+  try {
+    const r = await fetch('/api/logs');
+    const logs = await r.json();
+    if (!logs.length) {
+      el.innerHTML = '<div class="flex items-center justify-center h-full opacity-40">暂无记录</div>';
+      return;
+    }
+    const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    el.innerHTML = logs.slice(-50).reverse().map(l => {
+      const ok = l.status === 200;
+      const thinkTag = l.thinking === 'off' ? '<span class="opacity-50 text-warning flex-shrink-0">思考关</span>'
+        : l.thinking === 'high' ? '<span class="opacity-60 text-info flex-shrink-0">标准</span>'
+        : l.thinking === 'max' ? '<span class="opacity-60 text-accent flex-shrink-0">深度</span>'
+        : '';
+      return `<div class="log-row flex items-center gap-2">
+        <span class="opacity-40 flex-shrink-0">${esc(l.time)}</span>
+        <span class="w-1.5 h-1.5 rounded-full flex-shrink-0 ${ok?'bg-accent':'bg-error'}"></span>
+        <span class="truncate font-medium">${esc(l.model)}</span>
+        ${thinkTag}
+        <span class="opacity-40 flex-shrink-0">${ok ? '成功' : l.status}</span>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    el.innerHTML = '<div class="flex items-center justify-center h-full text-error opacity-60">加载失败</div>';
+  }
+}
+
+let currentPage = 'main';
+function switchPage() {
+  const isMain = currentPage === 'main';
+  const from = document.getElementById(isMain ? 'page-main' : 'page-settings');
+  const to = document.getElementById(isMain ? 'page-settings' : 'page-main');
+  from.classList.add('hidden');
+  to.classList.remove('hidden');
+  to.classList.add('page-enter');
+  requestAnimationFrame(() => requestAnimationFrame(() => to.classList.remove('page-enter')));
+  document.getElementById('header-main').classList.toggle('hidden', isMain);
+  document.getElementById('header-settings').classList.toggle('hidden', !isMain);
+  currentPage = isMain ? 'settings' : 'main';
+  document.getElementById('action-bar').style.display = isMain ? 'none' : '';
+  if (isMain) loadLogs();
+}
+
+const TIPS = ['正在启动代理...', '加载资源中...', '即将就绪...'];
+let tipIdx = 0;
+const tipEl = document.getElementById('loading-tip');
+const tipTimer = setInterval(() => { tipIdx = (tipIdx + 1) % TIPS.length; tipEl.textContent = TIPS[tipIdx]; }, 1500);
+
+async function bootstrap() {
+  initTheme();
+  await loadAutostart();
+  await init();
+  clearInterval(tipTimer);
+  document.getElementById('loading').classList.add('hide');
+  const root = document.getElementById('app-root');
+  root.style.opacity = '1';
+  root.style.transition = 'opacity .3s ease';
+  document.getElementById('action-bar').style.display = '';
+  setTimeout(() => document.getElementById('loading')?.remove(), 500);
+}
+bootstrap();
+
+(function(){
+  const _W = 'Winhao学AI';
+  const _D = '抖音搜索同名';
+  const _F = '本软件完全免费，不可商业化';
+  const _BAR = _W+'  |  '+_D+'  |  '+_F;
+
+  const _BADGE = _W + ' · 免费软件';
+  const _SIG = 'wm_' + Date.now().toString(36);
+
+  function createBar() {
+    var b = document.createElement('div');
+    b.className = 'wm-bar';
+    b.setAttribute('data-wm', _SIG);
+    b.textContent = _BAR;
+    document.body.appendChild(b);
+    return b;
+  }
+
+  function createBadge() {
+    var hdr = document.getElementById('header-main');
+    if (!hdr) return null;
+    var existing = hdr.querySelector('.wm-badge');
+    if (existing) return existing;
+    var badge = document.createElement('span');
+    badge.className = 'wm-badge';
+    badge.setAttribute('data-wm', _SIG);
+    badge.textContent = _BADGE;
+    hdr.querySelector('.flex.items-center.gap-3')?.appendChild(badge);
+    return badge;
+  }
+
+  var bar = createBar();
+  setTimeout(createBadge, 1500);
+
+  function checkIntegrity() {
+    if (!document.body.querySelector('.wm-bar[data-wm="'+_SIG+'"]')) {
+      bar = createBar();
+    }
+    var b = document.body.querySelector('.wm-bar[data-wm="'+_SIG+'"]');
+    if (b) {
+      if (b.textContent !== _BAR) b.textContent = _BAR;
+      var cs = window.getComputedStyle(b);
+      if (cs.display === 'none' || cs.visibility === 'hidden' ||
+          parseFloat(cs.opacity) < 0.3 || cs.position !== 'fixed' ||
+          parseInt(cs.zIndex) < 1000 ||
+          parseInt(cs.height) < 5 || parseInt(cs.width) < 50 ||
+          cs.clipPath !== 'none' ||
+          parseInt(cs.fontSize) < 5) {
+        b.remove();
+        bar = createBar();
+      }
+    }
+    if (!document.querySelector('.wm-badge[data-wm="'+_SIG+'"]')) {
+      createBadge();
+    }
+  }
+
+  setInterval(checkIntegrity, 800);
+
+  var mo = new MutationObserver(function(mutations) {
+    var needCheck = false;
+    for (var i = 0; i < mutations.length; i++) {
+      var m = mutations[i];
+      if (m.removedNodes.length) {
+        for (var j = 0; j < m.removedNodes.length; j++) {
+          var n = m.removedNodes[j];
+          if (n.nodeType === 1 && n.getAttribute && n.getAttribute('data-wm') === _SIG) {
+            needCheck = true;
+            break;
+          }
+        }
+      }
+      if (m.type === 'attributes' && m.target.getAttribute && m.target.getAttribute('data-wm') === _SIG) {
+        needCheck = true;
+      }
+      if (needCheck) break;
+    }
+    if (needCheck) setTimeout(checkIntegrity, 50);
+  });
+  mo.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['style','class','hidden'] });
+
+  var _origTitle = document.title;
+  Object.defineProperty(document, 'title', {
+    get: function() { return _origTitle + ' - ' + _W; },
+    set: function(v) { _origTitle = v; }
+  });
+  document.title = 'ModelLink';
+
+  try {
+    var _ael = EventTarget.prototype.addEventListener;
+    var _blocked = ['beforeunload'];
+    EventTarget.prototype.addEventListener = function(type, fn, opts) {
+      return _ael.call(this, type, fn, opts);
+    };
+  } catch(e) {}
+
+  try {
+    var _origRemove = Element.prototype.remove;
+    Element.prototype.remove = function() {
+      if (this.getAttribute && this.getAttribute('data-wm') === _SIG) {
+        return;
+      }
+      return _origRemove.call(this);
+    };
+    var _origRemoveChild = Node.prototype.removeChild;
+    Node.prototype.removeChild = function(child) {
+      if (child.getAttribute && child.getAttribute('data-wm') === _SIG) {
+        return child;
+      }
+      return _origRemoveChild.call(this, child);
+    };
+  } catch(e) {}
+
+  try {
+    var _origSetAttr = Element.prototype.setAttribute;
+    Element.prototype.setAttribute = function(name, value) {
+      if (this.getAttribute && this.getAttribute('data-wm') === _SIG) {
+        if (name === 'style' || name === 'class' || name === 'hidden') {
+          return;
+        }
+      }
+      return _origSetAttr.call(this, name, value);
+    };
+    var _origStyleSet = CSSStyleDeclaration.prototype.setProperty;
+    CSSStyleDeclaration.prototype.setProperty = function(prop, val, prio) {
+      var el = this.parentRule ? null : (function(s){
+        try { return document.querySelector('[style]') } catch(e) { return null; }
+      })();
+      return _origStyleSet.call(this, prop, val, prio);
+    };
+  } catch(e) {}
+
+  var _consoleWarn = console.warn;
+  Object.defineProperty(window, '__wm_remove', {
+    get: function() {
+      _consoleWarn.call(console, '⚠️ ' + _F + ' — ' + _W);
+      return undefined;
+    },
+    configurable: false
+  });
+})();
+</script>
+</body>
+</html>

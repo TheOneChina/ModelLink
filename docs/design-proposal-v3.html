@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ModelLink 2.0 界面设计提案 v3 · 单屏指挥台</title>
+<style>
+/* ================= 页面主题（跟随系统浅/深色） ================= */
+:root{
+  --pg-bg:#FCFCFA; --pg-fg:#1E1D1A; --pg-fg2:#6C685F; --pg-fg3:#9A958A;
+  --pg-border:rgba(30,29,26,.12); --pg-canvas:#EFEDE7; --pg-card:#FFFFFF;
+  --pg-accent:#BC5F40; --pg-accent-soft:rgba(217,119,87,.12);
+  --pg-mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --pg-bg:#151618; --pg-fg:#E9E7E1; --pg-fg2:#A19C90; --pg-fg3:#6E6A61;
+    --pg-border:rgba(233,231,225,.13); --pg-canvas:#0E0F11; --pg-card:#1E1F23;
+    --pg-accent:#E08A6D; --pg-accent-soft:rgba(224,138,109,.14);
+  }
+}
+html{background:var(--pg-bg)}
+body{
+  margin:0; font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;
+  color:var(--pg-fg); background:var(--pg-bg); line-height:1.6; font-size:15px;
+  -webkit-font-smoothing:antialiased;
+}
+*{box-sizing:border-box}
+.wrap{max-width:1100px;margin:0 auto;padding:56px 28px 96px}
+.eyebrow{font-size:11px;font-weight:600;letter-spacing:.14em;color:var(--pg-accent);text-transform:uppercase}
+h1{font-size:34px;font-weight:700;letter-spacing:-.02em;line-height:1.2;margin:10px 0 14px;text-wrap:balance}
+.standfirst{font-size:16px;color:var(--pg-fg2);max-width:66ch;margin:0 0 8px}
+.standfirst b{color:var(--pg-fg)}
+.metaline{font-size:12.5px;color:var(--pg-fg3);font-family:var(--pg-mono);margin-top:14px}
+section{margin-top:76px}
+.secno{font-family:var(--pg-mono);font-size:11.5px;color:var(--pg-fg3);letter-spacing:.08em}
+h2{font-size:22px;font-weight:650;letter-spacing:-.01em;margin:6px 0 8px;text-wrap:balance}
+.lede{color:var(--pg-fg2);max-width:72ch;margin:0 0 22px;font-size:14.5px}
+.lede strong{color:var(--pg-fg);font-weight:600}
+.board{background:var(--pg-canvas);border:1px solid var(--pg-border);border-radius:18px;
+  padding:34px 24px;display:flex;justify-content:center;overflow-x:auto}
+.boards2{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+@media (max-width:960px){.boards2{grid-template-columns:1fr}}
+.boardcap{font-size:12.5px;color:var(--pg-fg3);margin-top:10px;text-align:center}
+.legend{display:grid;grid-template-columns:1fr 1fr;gap:14px 28px;margin-top:26px}
+@media (max-width:760px){.legend{grid-template-columns:1fr}}
+.legend div{font-size:13.5px;color:var(--pg-fg2);padding-left:14px;position:relative}
+.legend div::before{content:"";position:absolute;left:0;top:9px;width:6px;height:6px;border-radius:2px;background:var(--pg-accent)}
+.legend b{color:var(--pg-fg);font-weight:600}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th{text-align:left;font-size:11px;font-weight:600;letter-spacing:.08em;color:var(--pg-fg3);
+  padding:0 14px 10px 0;border-bottom:1px solid var(--pg-border)}
+td{padding:11px 14px 11px 0;border-bottom:1px solid var(--pg-border);vertical-align:top;color:var(--pg-fg2)}
+td:first-child{color:var(--pg-fg);font-weight:550;white-space:nowrap}
+td code,.mono{font-family:var(--pg-mono);font-size:12.5px}
+.tablewrap{overflow-x:auto}
+.points{display:flex;flex-direction:column;gap:16px;max-width:78ch}
+.points p{margin:0;font-size:14px;color:var(--pg-fg2)}
+.points b{color:var(--pg-fg);font-weight:600}
+.callout{border:1px solid var(--pg-border);background:var(--pg-accent-soft);border-radius:14px;
+  padding:16px 20px;font-size:13.5px;color:var(--pg-fg);max-width:78ch;margin-top:26px}
+.zoom{zoom:.5}
+
+/* ================= App 令牌（与 v2 同族，骨架不同） ================= */
+.ml{
+  --a-bg:#FAF9F5; --a-card:#FFFFFF; --a-fg:#26231D; --a-fg2:#6F6A60; --a-fg3:#A39D91;
+  --a-border:rgba(38,35,29,.11); --a-input:#FFFFFF;
+  --a-primary:#D97757; --a-soft:rgba(217,119,87,.11);
+  --a-ok:#26836C; --a-ok-soft:rgba(38,131,108,.12);
+  --a-warn:#A97A1E; --a-warn-soft:rgba(169,122,30,.12); --a-red:#C9534C;
+  --a-shadow:0 20px 55px rgba(43,36,26,.16), 0 2px 8px rgba(43,36,26,.08);
+  font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;
+  color:var(--a-fg);
+}
+.ml.dark{
+  --a-bg:#1B1D21; --a-card:#24262C; --a-fg:#EDEBE3; --a-fg2:#A5A094; --a-fg3:#716C62;
+  --a-border:rgba(255,255,255,.10); --a-input:#1F2126;
+  --a-primary:#D97757; --a-soft:rgba(217,119,87,.16);
+  --a-ok:#4DB8A0; --a-ok-soft:rgba(77,184,160,.15);
+  --a-warn:#D4A843; --a-warn-soft:rgba(212,168,67,.15); --a-red:#E0685F;
+  --a-shadow:0 20px 55px rgba(0,0,0,.5), 0 2px 8px rgba(0,0,0,.35);
+}
+svg{display:block}
+/* —— 窗口骨架：960 × 620 单屏 —— */
+.win{width:960px;min-width:960px;min-height:600px;background:var(--a-bg);border-radius:14px;
+  box-shadow:var(--a-shadow);overflow:hidden;position:relative;display:flex;flex-direction:column;
+  border:1px solid rgba(0,0,0,.06)}
+.ml.dark .win{border-color:rgba(255,255,255,.07)}
+.lights{position:absolute;top:14px;left:14px;display:flex;gap:7px;z-index:3}
+.lights i{width:11px;height:11px;border-radius:50%;display:block}
+.lights i:nth-child(1){background:#F26057}.lights i:nth-child(2){background:#F5BE4F}.lights i:nth-child(3){background:#58C942}
+/* 顶栏（含拖拽区） */
+.topbar{height:52px;flex:none;display:flex;align-items:center;gap:12px;
+  padding:0 18px 0 84px;border-bottom:1px solid var(--a-border)}
+.mark{width:20px;height:20px;border-radius:6px;background:var(--a-primary);flex:none;
+  display:flex;align-items:center;justify-content:center;color:#fff}
+.brand{font-size:14.5px;font-weight:650;letter-spacing:-.01em}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;
+  padding:3px 9px;border-radius:999px;background:var(--a-ok-soft);color:var(--a-ok)}
+.pill .mono{font-size:10px;opacity:.85;font-weight:500}
+.dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex:none}
+.tspace{flex:1}
+.dirty{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--a-warn);font-weight:500}
+.okline{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;color:var(--a-ok);font-weight:500}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;font-weight:550;
+  border-radius:9px;border:1px solid transparent;white-space:nowrap}
+.btn.primary{background:var(--a-primary);color:#fff;height:33px;padding:0 15px;font-size:12.5px}
+.btn.outline{border-color:var(--a-border);color:var(--a-fg);height:29px;padding:0 12px;font-size:12px;background:var(--a-card)}
+.btn.ghost{color:var(--a-fg2);height:28px;padding:0 9px;font-size:12px}
+.btn.dashed{border:1px dashed var(--a-border);color:var(--a-fg3);height:30px;font-size:12px;width:100%;background:transparent}
+.iconbtn{width:30px;height:30px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;
+  color:var(--a-fg2)}
+.vdiv{width:1px;height:20px;background:var(--a-border)}
+/* Bento 网格 */
+.bento{flex:1;display:grid;grid-template-columns:1.4fr 1fr;grid-template-rows:auto 1fr;
+  gap:14px;padding:16px 18px;min-height:0}
+.tile{background:var(--a-card);border:1px solid var(--a-border);border-radius:12px;
+  display:flex;flex-direction:column;min-width:0}
+.tile.link{grid-row:1 / 3}
+.tilehead{display:flex;align-items:baseline;justify-content:space-between;padding:13px 16px 4px}
+.tilehead .k{font-size:11px;font-weight:600;letter-spacing:.08em;color:var(--a-fg3)}
+.tilehead .v{font-family:var(--pg-mono);font-size:11px;color:var(--a-fg3);font-variant-numeric:tabular-nums}
+.live{display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:700;letter-spacing:.08em;color:var(--a-ok)}
+/* 链路行 */
+.linkrows{padding:4px 8px 10px;display:flex;flex-direction:column}
+.lrow{display:flex;align-items:center;gap:11px;padding:9.5px 8px;border-radius:8px}
+.lrow + .lrow{border-top:1px solid var(--a-border)}
+.lrow .slot{width:196px;flex:none;font-family:var(--pg-mono);font-size:11.5px;color:var(--a-fg2);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lrow .arr{color:var(--a-fg3);flex:none}
+.lrow .real{flex:1;min-width:0;display:flex;align-items:center;gap:7px}
+.lrow .real .rm{font-family:var(--pg-mono);font-size:12px;font-weight:600;color:var(--a-fg);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.m1{font-size:9px;font-weight:700;color:var(--a-primary);letter-spacing:.02em;border:1px solid rgba(217,119,87,.4);
+  border-radius:4px;padding:0 4px;flex:none}
+.ptag{display:inline-flex;align-items:center;gap:5px;flex:none;font-size:10.5px;color:var(--a-fg2);
+  background:var(--a-bg);border:1px solid var(--a-border);border-radius:999px;padding:2px 8px 2px 3px}
+.pava{width:15px;height:15px;border-radius:50%;background:var(--a-soft);color:var(--a-primary);
+  display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;flex:none}
+.lempty{margin:8px 8px 4px;border:1px dashed var(--a-border);border-radius:8px;
+  text-align:center;font-size:11.5px;color:var(--a-fg3);padding:9px}
+/* 服务商 tile */
+.provrows{padding:6px 10px 12px;display:flex;flex-direction:column;gap:7px}
+.pitem{border:1px solid var(--a-border);border-radius:10px;padding:9px 11px;
+  display:flex;align-items:center;gap:9px;background:var(--a-bg)}
+.ml.dark .pitem{background:var(--a-input)}
+.avatar{width:26px;height:26px;border-radius:50%;background:var(--a-soft);color:var(--a-primary);
+  display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex:none}
+.pitem .pn{min-width:0;flex:1}
+.pitem .n{font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pitem .c{font-size:10.5px;color:var(--a-fg3);margin-top:1px}
+.okdot{width:6px;height:6px;border-radius:50%;background:var(--a-ok);flex:none}
+.chev{color:var(--a-fg3);flex:none}
+/* 日志 tile */
+.logrows{padding:4px 8px 6px;display:flex;flex-direction:column;flex:1}
+.logrow{display:flex;align-items:center;gap:9px;font-family:var(--pg-mono);font-size:11px;padding:6.5px 8px}
+.logrow + .logrow{border-top:1px solid var(--a-border)}
+.logrow .lt{color:var(--a-fg3);flex:none}
+.logrow .lm{font-weight:600;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.logrow .tk{font-family:-apple-system,"PingFang SC",sans-serif;font-size:9.5px;color:var(--a-fg2);
+  background:var(--a-bg);border:1px solid var(--a-border);border-radius:5px;padding:1px 6px;flex:none}
+.ml.dark .logrow .tk{background:var(--a-input)}
+.logrow .st{flex:none;color:var(--a-ok)}
+.logrow .st.err{color:var(--a-red)}
+.lognote{font-size:10px;color:var(--a-fg3);padding:6px 16px 12px}
+/* 水印细条 */
+.wmstrip{flex:none;border-top:1px solid var(--a-border);padding:5px 0 6px;text-align:center;
+  font-size:9.5px;letter-spacing:.04em;color:var(--a-fg3)}
+/* 编辑抽屉（Sheet） */
+.scrim{position:absolute;inset:0;background:rgba(23,20,16,.38);z-index:4}
+.ml.dark .scrim{background:rgba(0,0,0,.5)}
+.sheet{position:absolute;top:0;right:0;bottom:0;width:400px;background:var(--a-card);
+  border-left:1px solid var(--a-border);box-shadow:-24px 0 60px rgba(0,0,0,.18);z-index:5;
+  display:flex;flex-direction:column;padding:16px 18px;gap:12px}
+.sheethead{display:flex;align-items:center;justify-content:space-between;margin-bottom:2px}
+.sheethead .l{display:flex;align-items:center;gap:9px}
+.sheethead .t{font-size:14px;font-weight:650}
+.frow{display:flex;flex-direction:column;gap:5px}
+.frow label{font-size:11px;font-weight:550;color:var(--a-fg2);letter-spacing:.03em}
+.input{height:33px;border:1px solid var(--a-border);border-radius:9px;background:var(--a-input);
+  display:flex;align-items:center;padding:0 11px;font-family:var(--pg-mono);font-size:12px;color:var(--a-fg)}
+.input .grow{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.input .eye{color:var(--a-fg3);flex:none}
+.mhead{display:flex;align-items:center;justify-content:space-between}
+.mhead label{font-size:11px;font-weight:550;color:var(--a-fg2)}
+.testwrap{display:flex;align-items:center;gap:8px}
+.mrow{display:flex;align-items:center;gap:8px}
+.mrow .input{flex:1}
+.slot2{font-family:var(--pg-mono);font-size:10px;color:var(--a-fg3);padding-left:2px;margin-top:-7px}
+.sw2{width:30px;height:18px;border-radius:999px;background:var(--a-border);position:relative;flex:none}
+.sw2 i{position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25)}
+.sw2.on{background:var(--a-primary)}
+.sw2.on i{left:auto;right:2px}
+.swlab{font-size:10.5px;color:var(--a-fg3);margin-left:-2px}
+.trash{color:var(--a-fg3);flex:none}
+.selwrap{display:flex;align-items:center;gap:8px}
+.selwrap label{font-size:11px;font-weight:550;color:var(--a-fg2)}
+.select{height:29px;border:1px solid var(--a-border);border-radius:8px;background:var(--a-input);
+  display:inline-flex;align-items:center;gap:8px;padding:0 10px;font-size:12px;color:var(--a-fg)}
+.sheetspace{flex:1}
+.sheetfoot{display:flex;align-items:center;justify-content:space-between;border-top:1px solid var(--a-border);padding-top:12px}
+.autosave{font-size:10.5px;color:var(--a-fg3)}
+/* 空状态 */
+.onboard{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:20px}
+.onboard .ot{font-size:17px;font-weight:650}
+.onboard .os{font-size:12.5px;color:var(--a-fg2);margin-top:-10px}
+.presets{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;width:560px;max-width:100%}
+.ptile{background:var(--a-card);border:1px solid var(--a-border);border-radius:11px;padding:11px 12px;
+  display:flex;align-items:center;gap:9px}
+.ptile .pt{min-width:0;flex:1}
+.ptile .pn{font-size:12px;font-weight:600;line-height:1.3}
+.ptile .pu{font-family:var(--pg-mono);font-size:9px;color:var(--a-fg3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ptile.custom{border-style:dashed}
+.ptile.custom .avatar{background:var(--a-bg);color:var(--a-fg3)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="eyebrow">Design Proposal v3 · ModelLink 2.0</div>
+  <h1>单屏指挥台：零导航 Bento</h1>
+  <p class="standfirst">与 v2（侧栏导航 + 分页）并列的待选方案。思路相反：<b>不分页面</b>——一块 960 × 620 的仪表盘把链路、服务商、实时请求同时摆在眼前，任何时刻所有信息一览无余。编辑用右侧滑出抽屉（仪表盘不离场），设置收进右上角齿轮弹层。「模型链路板」这个核心想法两版共享，变的是骨架。</p>
+  <p class="metaline">2026-07-13 · v3 与 v2 并列待选 · v2 见 design-proposal.html · 选定后冻结 docs/design.md</p>
+
+  <!-- ============ 01 主界面 ============ -->
+  <section>
+    <div class="secno">01</div>
+    <h2>主界面 — 一屏三块</h2>
+    <p class="lede">左侧大块是<strong>模型链路</strong>（占满两行的主视觉），右上<strong>服务商</strong>、右下<strong>实时请求</strong>。顶栏是全局指挥位：左边身份与运行状态，右边永远是应用状态 + 主按钮——不管在做什么，「应用」都在同一个位置。</p>
+
+    <div class="board"><div class="ml"><div class="win">
+      <div class="lights"><i></i><i></i><i></i></div>
+      <div class="topbar">
+        <span class="mark"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M9 17H7a5 5 0 0 1 0-10h2M15 7h2a5 5 0 0 1 0 10h-2M8 12h8"/></svg></span>
+        <span class="brand">ModelLink</span>
+        <span class="pill"><span class="dot"></span>运行中 <span class="mono">127.0.0.1:5678</span></span>
+        <span class="tspace"></span>
+        <span class="dirty"><span class="dot"></span>配置已修改，尚未应用</span>
+        <span class="btn primary">应用到 Claude Desktop</span>
+        <span class="vdiv"></span>
+        <span class="iconbtn" title="设置"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 8h10M18 8h2M4 16h2M10 16h10"/><circle cx="16" cy="8" r="2.2"/><circle cx="8" cy="16" r="2.2"/></svg></span>
+      </div>
+      <div class="bento">
+        <div class="tile link">
+          <div class="tilehead"><span class="k">模型链路</span><span class="v">3 / 8 槽位</span></div>
+          <div class="linkrows">
+            <div class="lrow">
+              <span class="slot">claude-3-opus-latest</span>
+              <span class="arr"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+              <span class="real"><span class="rm">deepseek-v4-pro</span><span class="m1">1M</span></span>
+              <span class="ptag"><span class="pava">D</span>DeepSeek</span>
+            </div>
+            <div class="lrow">
+              <span class="slot">claude-3-5-sonnet-latest</span>
+              <span class="arr"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+              <span class="real"><span class="rm">deepseek-v4-flash</span></span>
+              <span class="ptag"><span class="pava">D</span>DeepSeek</span>
+            </div>
+            <div class="lrow">
+              <span class="slot">claude-3-sonnet-20240229</span>
+              <span class="arr"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+              <span class="real"><span class="rm">kimi-k2.5</span><span class="m1">1M</span></span>
+              <span class="ptag"><span class="pava">K</span>Kimi 开放平台</span>
+            </div>
+            <div class="lempty">其余 5 个槽位空闲 · 在右侧服务商中添加模型后自动接入</div>
+          </div>
+        </div>
+        <div class="tile">
+          <div class="tilehead"><span class="k">服务商</span><span class="v">2 个</span></div>
+          <div class="provrows">
+            <div class="pitem"><span class="avatar">D</span><div class="pn"><div class="n">DeepSeek</div><div class="c">2 个模型 · 深度思考</div></div><span class="okdot"></span><span class="chev"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m9 18 6-6-6-6"/></svg></span></div>
+            <div class="pitem"><span class="avatar">K</span><div class="pn"><div class="n">Kimi 开放平台</div><div class="c">1 个模型</div></div><span class="okdot"></span><span class="chev"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m9 18 6-6-6-6"/></svg></span></div>
+            <span class="btn dashed">+ 添加服务商</span>
+          </div>
+        </div>
+        <div class="tile">
+          <div class="tilehead"><span class="k">实时请求</span><span class="live"><span class="dot"></span>LIVE</span></div>
+          <div class="logrows">
+            <div class="logrow"><span class="lt">14:32:47</span><span class="okdot"></span><span class="lm">deepseek-v4-pro</span><span class="tk">深度</span><span class="st">200</span></div>
+            <div class="logrow"><span class="lt">14:32:12</span><span class="okdot"></span><span class="lm">deepseek-v4-pro</span><span class="tk">深度</span><span class="st">200</span></div>
+            <div class="logrow"><span class="lt">14:29:03</span><span class="okdot"></span><span class="lm">kimi-k2.5[1m]</span><span class="tk">默认</span><span class="st">200</span></div>
+            <div class="logrow"><span class="lt">14:27:55</span><span class="okdot" style="background:var(--a-red)"></span><span class="lm">deepseek-v4-flash</span><span class="tk">思考关</span><span class="st err">502</span></div>
+          </div>
+          <div class="lognote">保留最近 100 条 · 点击标题查看全部</div>
+        </div>
+      </div>
+      <div class="wmstrip">Winhao学AI · 抖音搜索同名 · 本软件完全免费，不可商业化</div>
+    </div></div></div>
+    <div class="boardcap">主界面 · 浅色 · dirty 状态（顶栏琥珀提示 + 高亮主按钮）</div>
+
+    <div class="legend">
+      <div><b>零导航。</b>没有侧栏、没有页面切换——链路、服务商、实时请求同屏常驻。对「开一眼确认在工作」的日常使用，这是点击次数最少的形态。</div>
+      <div><b>顶栏 = 指挥位。</b>应用状态和主按钮固定在右上角，任何操作过程中都可见可点；左侧「运行中 + 端口」徽章即全局健康度。</div>
+      <div><b>链路板占满左侧两行</b>，仍是主视觉（与 v2 共享这个核心想法）；空槽位提示指向右侧服务商块，视线动线一致。</div>
+      <div><b>实时请求自带 LIVE 感。</b>2 秒轮询、新行从顶部推入，代理「正在干活」有直接证据；出错行红色状态码一眼可见。</div>
+      <div><b>服务商块只做清单</b>：名称、模型数、思考档位、连通点。点击整行打开右侧编辑抽屉（见 §02），仪表盘退后但不消失。</div>
+      <div><b>设置收进齿轮弹层</b>（Popover）：外观三态、开机自启、检查更新、关于。低频操作不占常驻空间。水印为底部细条。</div>
+    </div>
+  </section>
+
+  <!-- ============ 02 编辑抽屉 + 空状态 ============ -->
+  <section>
+    <div class="secno">02</div>
+    <h2>编辑抽屉与空状态</h2>
+    <p class="lede">点服务商行，右侧滑出 400px 抽屉（shadcn Sheet）：URL、密钥、模型行（带槽位提示与 1M 开关）、推理强度、测试连接。<strong>改动实时自动保存</strong>，关掉抽屉顶栏立即出现「尚未应用」提示。首启空状态：仪表盘让位给居中的预设网格。</p>
+
+    <div class="boards2">
+      <div>
+        <div class="board" style="padding:22px 12px"><div class="zoom"><div class="ml"><div class="win">
+          <div class="lights"><i></i><i></i><i></i></div>
+          <div class="topbar">
+            <span class="mark"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M9 17H7a5 5 0 0 1 0-10h2M15 7h2a5 5 0 0 1 0 10h-2M8 12h8"/></svg></span>
+            <span class="brand">ModelLink</span>
+            <span class="pill"><span class="dot"></span>运行中 <span class="mono">127.0.0.1:5678</span></span>
+            <span class="tspace"></span>
+            <span class="dirty"><span class="dot"></span>配置已修改，尚未应用</span>
+            <span class="btn primary">应用到 Claude Desktop</span>
+            <span class="vdiv"></span>
+            <span class="iconbtn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 8h10M18 8h2M4 16h2M10 16h10"/><circle cx="16" cy="8" r="2.2"/><circle cx="8" cy="16" r="2.2"/></svg></span>
+          </div>
+          <div class="bento">
+            <div class="tile link">
+              <div class="tilehead"><span class="k">模型链路</span><span class="v">3 / 8 槽位</span></div>
+              <div class="linkrows">
+                <div class="lrow"><span class="slot">claude-3-opus-latest</span><span class="arr"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span><span class="real"><span class="rm">deepseek-v4-pro</span><span class="m1">1M</span></span><span class="ptag"><span class="pava">D</span>DeepSeek</span></div>
+                <div class="lrow"><span class="slot">claude-3-5-sonnet-latest</span><span class="arr"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span><span class="real"><span class="rm">deepseek-v4-flash</span></span><span class="ptag"><span class="pava">D</span>DeepSeek</span></div>
+                <div class="lrow"><span class="slot">claude-3-sonnet-20240229</span><span class="arr"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span><span class="real"><span class="rm">kimi-k2.5</span><span class="m1">1M</span></span><span class="ptag"><span class="pava">K</span>Kimi 开放平台</span></div>
+                <div class="lempty">其余 5 个槽位空闲</div>
+              </div>
+            </div>
+            <div class="tile">
+              <div class="tilehead"><span class="k">服务商</span><span class="v">2 个</span></div>
+              <div class="provrows">
+                <div class="pitem" style="border-color:rgba(217,119,87,.5)"><span class="avatar">D</span><div class="pn"><div class="n">DeepSeek</div><div class="c">编辑中…</div></div><span class="okdot"></span></div>
+                <div class="pitem"><span class="avatar">K</span><div class="pn"><div class="n">Kimi 开放平台</div><div class="c">1 个模型</div></div><span class="okdot"></span></div>
+              </div>
+            </div>
+            <div class="tile">
+              <div class="tilehead"><span class="k">实时请求</span><span class="live"><span class="dot"></span>LIVE</span></div>
+              <div class="logrows">
+                <div class="logrow"><span class="lt">14:32:47</span><span class="okdot"></span><span class="lm">deepseek-v4-pro</span><span class="st">200</span></div>
+                <div class="logrow"><span class="lt">14:32:12</span><span class="okdot"></span><span class="lm">deepseek-v4-pro</span><span class="st">200</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="wmstrip">Winhao学AI · 抖音搜索同名 · 本软件完全免费，不可商业化</div>
+          <div class="scrim"></div>
+          <div class="sheet">
+            <div class="sheethead">
+              <div class="l"><span class="avatar">D</span><span class="t">DeepSeek</span></div>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="color:var(--a-fg3)"><path d="M18 6 6 18M6 6l12 12"/></svg>
+            </div>
+            <div class="frow"><label>API 地址</label><div class="input"><span class="grow">https://api.deepseek.com/anthropic</span></div></div>
+            <div class="frow"><label>API 密钥</label><div class="input"><span class="grow">••••••••••••••••</span><span class="eye"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg></span></div></div>
+            <div class="mhead">
+              <label>模型</label>
+              <div class="testwrap">
+                <span class="okline"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>连接成功</span>
+                <span class="btn outline">测试连接</span>
+              </div>
+            </div>
+            <div class="mrow">
+              <div class="input"><span class="grow">deepseek-v4-pro</span></div>
+              <span class="sw2 on"><i></i></span><span class="swlab">1M</span>
+              <span class="trash"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></span>
+            </div>
+            <div class="slot2">→ claude-3-opus-latest</div>
+            <div class="mrow">
+              <div class="input"><span class="grow">deepseek-v4-flash</span></div>
+              <span class="sw2"><i></i></span><span class="swlab">1M</span>
+              <span class="trash"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></span>
+            </div>
+            <div class="slot2">→ claude-3-5-sonnet-latest</div>
+            <span class="btn dashed">+ 添加模型</span>
+            <div class="selwrap"><label>推理强度</label>
+              <span class="select">深度 (max)<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg></span>
+            </div>
+            <div class="sheetspace"></div>
+            <div class="sheetfoot">
+              <span class="autosave">更改已自动保存</span>
+              <span class="btn ghost" style="color:var(--a-red)">删除服务商</span>
+            </div>
+          </div>
+        </div></div></div></div>
+        <div class="boardcap">编辑抽屉（Sheet 400px）· 仪表盘退后不离场 · 底部「已自动保存」+ 删除沉底</div>
+      </div>
+
+      <div>
+        <div class="board" style="padding:22px 12px"><div class="zoom"><div class="ml"><div class="win">
+          <div class="lights"><i></i><i></i><i></i></div>
+          <div class="topbar">
+            <span class="mark"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M9 17H7a5 5 0 0 1 0-10h2M15 7h2a5 5 0 0 1 0 10h-2M8 12h8"/></svg></span>
+            <span class="brand">ModelLink</span>
+            <span class="pill"><span class="dot"></span>运行中 <span class="mono">127.0.0.1:5678</span></span>
+            <span class="tspace"></span>
+            <span class="iconbtn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 8h10M18 8h2M4 16h2M10 16h10"/><circle cx="16" cy="8" r="2.2"/><circle cx="8" cy="16" r="2.2"/></svg></span>
+          </div>
+          <div class="onboard">
+            <div class="ot">选择一个服务商开始</div>
+            <div class="os">配置 API 密钥后，一键接入 Claude Desktop</div>
+            <div class="presets">
+              <div class="ptile"><span class="avatar">D</span><div class="pt"><div class="pn">DeepSeek</div><div class="pu">api.deepseek.com</div></div></div>
+              <div class="ptile"><span class="avatar">K</span><div class="pt"><div class="pn">Kimi Code</div><div class="pu">api.kimi.com</div></div></div>
+              <div class="ptile"><span class="avatar">K</span><div class="pt"><div class="pn">Kimi 开放平台</div><div class="pu">api.moonshot.cn</div></div></div>
+              <div class="ptile"><span class="avatar">M</span><div class="pt"><div class="pn">MiniMax</div><div class="pu">api.minimaxi.com</div></div></div>
+              <div class="ptile"><span class="avatar">百</span><div class="pt"><div class="pn">百炼 Coding</div><div class="pu">dashscope</div></div></div>
+              <div class="ptile"><span class="avatar">百</span><div class="pt"><div class="pn">百炼 Token</div><div class="pu">token-plan</div></div></div>
+              <div class="ptile"><span class="avatar">G</span><div class="pt"><div class="pn">GLM（智谱）</div><div class="pu">open.bigmodel.cn</div></div></div>
+              <div class="ptile"><span class="avatar">m</span><div class="pt"><div class="pn">mimo</div><div class="pu">api.xiaomimimo.com</div></div></div>
+              <div class="ptile custom"><span class="avatar">?</span><div class="pt"><div class="pn">自定义</div><div class="pu">手动填写地址</div></div></div>
+            </div>
+          </div>
+          <div class="wmstrip">Winhao学AI · 抖音搜索同名 · 本软件完全免费，不可商业化</div>
+        </div></div></div></div>
+        <div class="boardcap">空状态 · 仪表盘让位给居中预设网格，点击即建服务商并打开编辑抽屉</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 03 深色模式 ============ -->
+  <section>
+    <div class="secno">03</div>
+    <h2>深色模式</h2>
+    <p class="lede">底 <span class="mono">#1B1D21</span> / tile <span class="mono">#24262C</span> 两层即可（没有侧栏就少一层）；品牌色 <span class="mono">#D97757</span> 不变，success 提亮 <span class="mono">#4DB8A0</span>。展示已应用的安静形态：顶栏绿勾 +「重新应用」。</p>
+
+    <div class="board"><div class="ml dark"><div class="win">
+      <div class="lights"><i></i><i></i><i></i></div>
+      <div class="topbar">
+        <span class="mark"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M9 17H7a5 5 0 0 1 0-10h2M15 7h2a5 5 0 0 1 0 10h-2M8 12h8"/></svg></span>
+        <span class="brand">ModelLink</span>
+        <span class="pill"><span class="dot"></span>运行中 <span class="mono">127.0.0.1:5678</span></span>
+        <span class="tspace"></span>
+        <span class="okline"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>配置已生效</span>
+        <span class="btn outline">重新应用</span>
+        <span class="vdiv"></span>
+        <span class="iconbtn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 8h10M18 8h2M4 16h2M10 16h10"/><circle cx="16" cy="8" r="2.2"/><circle cx="8" cy="16" r="2.2"/></svg></span>
+      </div>
+      <div class="bento">
+        <div class="tile link">
+          <div class="tilehead"><span class="k">模型链路</span><span class="v">3 / 8 槽位</span></div>
+          <div class="linkrows">
+            <div class="lrow"><span class="slot">claude-3-opus-latest</span><span class="arr"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span><span class="real"><span class="rm">deepseek-v4-pro</span><span class="m1">1M</span></span><span class="ptag"><span class="pava">D</span>DeepSeek</span></div>
+            <div class="lrow"><span class="slot">claude-3-5-sonnet-latest</span><span class="arr"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span><span class="real"><span class="rm">deepseek-v4-flash</span></span><span class="ptag"><span class="pava">D</span>DeepSeek</span></div>
+            <div class="lrow"><span class="slot">claude-3-sonnet-20240229</span><span class="arr"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span><span class="real"><span class="rm">kimi-k2.5</span><span class="m1">1M</span></span><span class="ptag"><span class="pava">K</span>Kimi 开放平台</span></div>
+            <div class="lempty">其余 5 个槽位空闲 · 在右侧服务商中添加模型后自动接入</div>
+          </div>
+        </div>
+        <div class="tile">
+          <div class="tilehead"><span class="k">服务商</span><span class="v">2 个</span></div>
+          <div class="provrows">
+            <div class="pitem"><span class="avatar">D</span><div class="pn"><div class="n">DeepSeek</div><div class="c">2 个模型 · 深度思考</div></div><span class="okdot"></span><span class="chev"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m9 18 6-6-6-6"/></svg></span></div>
+            <div class="pitem"><span class="avatar">K</span><div class="pn"><div class="n">Kimi 开放平台</div><div class="c">1 个模型</div></div><span class="okdot"></span><span class="chev"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m9 18 6-6-6-6"/></svg></span></div>
+            <span class="btn dashed">+ 添加服务商</span>
+          </div>
+        </div>
+        <div class="tile">
+          <div class="tilehead"><span class="k">实时请求</span><span class="live"><span class="dot"></span>LIVE</span></div>
+          <div class="logrows">
+            <div class="logrow"><span class="lt">14:35:02</span><span class="okdot"></span><span class="lm">deepseek-v4-pro</span><span class="tk">深度</span><span class="st">200</span></div>
+            <div class="logrow"><span class="lt">14:32:47</span><span class="okdot"></span><span class="lm">deepseek-v4-pro</span><span class="tk">深度</span><span class="st">200</span></div>
+            <div class="logrow"><span class="lt">14:29:03</span><span class="okdot"></span><span class="lm">kimi-k2.5[1m]</span><span class="tk">默认</span><span class="st">200</span></div>
+          </div>
+          <div class="lognote">保留最近 100 条 · 点击标题查看全部</div>
+        </div>
+      </div>
+      <div class="wmstrip">Winhao学AI · 抖音搜索同名 · 本软件完全免费，不可商业化</div>
+    </div></div></div>
+    <div class="boardcap">深色 · 已应用状态（顶栏绿勾「配置已生效」+ 安静的「重新应用」）</div>
+  </section>
+
+  <!-- ============ 04 版式与设计令牌 ============ -->
+  <section>
+    <div class="secno">04</div>
+    <h2>版式与设计令牌</h2>
+    <p class="lede">仪表盘密度比 v2 再紧半档：没有页面标题层级，<strong>tile 标签（11px 字距 +0.08em）+ mono 数值</strong>就是全部结构语言；所有计数用 <code>tabular-nums</code> 对齐。色板与 v2 同族（品牌一致），少一层侧栏色。</p>
+
+    <div class="tablewrap"><table>
+      <tr><th>角色</th><th>字号 / 字重</th><th>用途</th></tr>
+      <tr><td>顶栏品牌</td><td><code>14.5px / 650</code></td><td>ModelLink 字标 + 6px 圆角 logo 方块</td></tr>
+      <tr><td>tile 标签</td><td><code>11px / 600</code></td><td>「模型链路」「服务商」「实时请求」，字距 +0.08em；右侧 mono 计数 11px</td></tr>
+      <tr><td>正文 / 表单</td><td><code>13px / 400</code></td><td>说明、抽屉表单；输入框内容 12px mono</td></tr>
+      <tr><td>清单主字</td><td><code>12.5px / 600</code></td><td>服务商名；链路板真实模型 12px mono/600</td></tr>
+      <tr><td>技术值 mono</td><td><code>9.5–11.5px</code></td><td>槽位 11.5、日志 11、端口/槽位提示 10、水印条 9.5</td></tr>
+      <tr><td>字体族</td><td colspan="2"><code>Outfit</code>（拉丁，本地 woff2 子集）→ 系统中文回退；mono：<code>SF Mono / Menlo / Consolas</code>。本稿以系统字体渲染。</td></tr>
+    </table></div>
+
+    <div class="tablewrap" style="margin-top:30px"><table>
+      <tr><th>布局令牌</th><th>值</th><th>说明</th></tr>
+      <tr><td>窗口</td><td><code>960 × 620</code></td><td>横向单屏；最小 880 × 560，可调；macOS 隐藏标题栏（顶栏即拖拽区），Windows 标准标题栏</td></tr>
+      <tr><td>Bento 网格</td><td><code>1.4fr : 1fr</code></td><td>左链路板跨两行；右列服务商（自适应高）+ 实时请求（填满剩余）；gap 14px、外边距 16/18px</td></tr>
+      <tr><td>顶栏</td><td><code>52px</code></td><td>含拖拽区；红绿灯左侧留 84px</td></tr>
+      <tr><td>编辑抽屉</td><td><code>400px</code></td><td>shadcn Sheet，右侧滑出，遮罩 rgba(23,20,16,.38)</td></tr>
+      <tr><td>圆角</td><td><code>12 / 9~10 / 5</code></td><td>tile 12px；抽屉内控件 9px、清单行 10px；日志标签 5px；徽章胶囊 999</td></tr>
+      <tr><td>控件高度</td><td><code>33 / 29</code></td><td>顶栏主按钮与输入框 33；次级按钮与 select 29</td></tr>
+    </table></div>
+
+    <div class="tablewrap" style="margin-top:30px"><table>
+      <tr><th>shadcn/ui 组件</th><th>用在哪</th></tr>
+      <tr><td>Button / Input / Label / Card</td><td>全局；三个 tile 即 Card</td></tr>
+      <tr><td><b>Sheet</b> / AlertDialog</td><td>服务商编辑抽屉（v3 特有）；删除服务商二次确认</td></tr>
+      <tr><td><b>Popover</b> / Tabs / Switch / Select</td><td>齿轮设置弹层（v3 特有）；外观三态；自启与 1M 开关；推理强度</td></tr>
+      <tr><td>Dialog</td><td>添加服务商预设网格（已有服务商后）、日志全量查看、更新弹窗</td></tr>
+      <tr><td>Badge / Sonner / Tooltip / ScrollArea</td><td>运行中徽章、1M、思考标签；toast；提示；链路板与日志滚动</td></tr>
+      <tr><td>Progress / Skeleton</td><td>更新下载进度；启动时 tile 占位</td></tr>
+    </table></div>
+  </section>
+
+  <!-- ============ 05 交互要点 ============ -->
+  <section>
+    <div class="secno">05</div>
+    <h2>交互要点</h2>
+    <div class="points">
+      <p><b>应用状态机常驻顶栏。</b>四态 <code class="mono">clean / dirty / applying / error</code>（hash 判定，与 v2 相同）；因为没有分页，<b>一处提示即全局提示</b>——这是单屏方案在状态传达上的天然优势。</p>
+      <p><b>编辑不离场。</b>抽屉打开时仪表盘只是变暗；改模型名时链路板同步刷新（改动即时反映在左侧），保存是自动的，抽屉脚注常驻「更改已自动保存」。</p>
+      <p><b>链路板行可点。</b>点某一行直接打开对应服务商的抽屉并定位到该模型——链路板不只是展示，也是入口。</p>
+      <p><b>实时请求 2 秒轮询</b>，新行顶部推入；tile 标题可点开 Dialog 看全部 100 条。长期空白 + Claude 无法对话时，tile 内显示诊断提示（「请检查是否已应用」）。</p>
+      <p><b>8 槽位约束前置。</b>链路板头部 <code class="mono">n / 8</code> 常驻；满槽时抽屉内「添加模型」禁用 + Tooltip。</p>
+      <p><b>更新与水印沿用既定方案。</b>UpdateModal 移植 ClaudeCN 套本令牌；水印为底部 22px 细条（防篡改护栏不变）。</p>
+    </div>
+    <div class="callout"><b>动效原则：</b>抽屉滑入 200ms（ease-out）+ 遮罩淡入；apply 成功后链路板行依次 300ms 绿色微闪（与 v2 相同的唯一表演性动效）；LIVE 点 2s 呼吸。其余零装饰，尊重 <code class="mono">prefers-reduced-motion</code>。</div>
+  </section>
+
+  <!-- ============ 06 与 v2 对比 ============ -->
+  <section>
+    <div class="secno">06</div>
+    <h2>v2 vs v3 怎么选</h2>
+    <p class="lede">两版共享：模型链路板、应用状态机 + 自动保存、预设引导空状态、色板与字体、水印与更新方案。分歧只在骨架与操作模型：</p>
+    <div class="tablewrap"><table>
+      <tr><th>维度</th><th>v2 · 侧栏导航（design-proposal.html）</th><th>v3 · 单屏指挥台（本稿）</th></tr>
+      <tr><td>骨架</td><td>880×640 · 侧栏 + 4 个页面</td><td>960×620 · 零导航 Bento + 抽屉/弹层</td></tr>
+      <tr><td>信息呈现</td><td>一次一件事，页页聚焦，界面更「静」</td><td>全局一览零点击，密度高，界面更「忙」</td></tr>
+      <tr><td>编辑方式</td><td>服务商页双栏编辑器（左列表右表单）</td><td>右侧滑出抽屉，仪表盘不离场</td></tr>
+      <tr><td>日志</td><td>独立整页（可慢慢看）</td><td>常驻 LIVE 小窗（全量开 Dialog）</td></tr>
+      <tr><td>设置</td><td>独立页</td><td>齿轮 Popover</td></tr>
+      <tr><td>dirty 提示</td><td>三处同源（页头 + 侧栏点 + 胶囊）</td><td>顶栏一处即全局</td></tr>
+      <tr><td>扩展性</td><td>好——将来加页面（统计、多配置方案）很自然</td><td>一屏塞满后再加功能只能进弹层</td></tr>
+      <tr><td>气质</td><td>系统设置类工具，稳重</td><td>仪表盘 / 指挥台，直接</td></tr>
+      <tr><td>适合</td><td>喜欢层级清晰、逐页操作</td><td>喜欢一屏掌控、最少点击</td></tr>
+    </table></div>
+  </section>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,11 @@
+.DS_Store
+
+# v1 时代的分发产物与临时素材（保留在磁盘，不进版本库）
+ModelLink-macOS.zip
+ModelLink-Windows.zip
+ModelLink.dmg
+ModelLink.app/
+ModelLink-Windows/
+WebView2Loader.dll
+截屏*.png
+e5d4f98d-*.jpeg
