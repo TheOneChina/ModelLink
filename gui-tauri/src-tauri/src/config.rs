@@ -4,7 +4,10 @@
 //! - `~/.claude-model-proxy/config.json` 路径与 serde 格式不变
 //! - 原子写入（tmp+rename）、unix 0600
 //! - 8 槽位映射、`[1m]` 变体、无匹配 fallback 第一个模型
+//!
 //! 平移不重写：除模块化拆分与可测试性抽取外，禁止任何行为改动。
+// v1 原样平移的代码保持逐字节一致，不做 clippy 风格改写（红线 #4）
+#![allow(clippy::ptr_arg, clippy::manual_strip)]
 
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
