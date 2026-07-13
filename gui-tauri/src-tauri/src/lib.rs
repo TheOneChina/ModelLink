@@ -9,16 +9,28 @@ use tauri::{
     AppHandle, Manager,
 };
 
+mod commands;
 mod config;
 mod gateway;
 mod proxy;
 
 use proxy::ProxyState;
 
-/// GUI 自身版本号（供前端设置页显示）。
-#[tauri::command]
-fn gui_version() -> String {
-    env!("CARGO_PKG_VERSION").to_string()
+/// 兼容红线 #5：老版 LaunchAgent（com.modellink.plist，指向旧 .app）迁移 ——
+/// 存在则删除，并用 tauri-plugin-autostart 重新注册，保持「自启已开启」状态不丢。
+#[cfg(target_os = "macos")]
+fn migrate_old_launch_agent(app: &tauri::App) {
+    use tauri_plugin_autostart::ManagerExt;
+    let Ok(home) = std::env::var("HOME") else { return };
+    let old_plist =
+        std::path::PathBuf::from(home).join("Library/LaunchAgents/com.modellink.plist");
+    if old_plist.exists() {
+        let _ = std::fs::remove_file(&old_plist);
+        match app.autolaunch().enable() {
+            Ok(()) => eprintln!("[migrate] v1 LaunchAgent 已迁移到 tauri-plugin-autostart"),
+            Err(e) => eprintln!("[migrate] WARN: 重新注册自启失败: {}", e),
+        }
+    }
 }
 
 fn show_main_window(app: &AppHandle) {
@@ -44,6 +56,9 @@ pub fn run() {
             // macOS：托盘常驻、无 Dock 图标（对齐 v1 Accessory 行为）
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+
+            #[cfg(target_os = "macos")]
+            migrate_old_launch_agent(app);
 
             // ---- 代理核心（与 v1 启动序列一致：先写网关配置，再起 5678 服务） ----
             gateway::ensure_claude_desktop_gateway();
@@ -133,7 +148,15 @@ pub fn run() {
                 let _ = window.hide();
             }
         })
-        .invoke_handler(tauri::generate_handler![gui_version])
+        .invoke_handler(tauri::generate_handler![
+            commands::gui_version,
+            commands::get_config,
+            commands::save_config,
+            commands::config_hash,
+            commands::test_provider,
+            commands::apply_to_claude,
+            commands::get_logs
+        ])
         .run(tauri::generate_context!())
         .expect("error while running ModelLink");
 }

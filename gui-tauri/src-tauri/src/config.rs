@@ -121,6 +121,22 @@ pub fn save_config_file(config: &Config) -> Result<(), String> {
     Ok(())
 }
 
+/// 规范化配置摘要（design.md §8）：对 providers 的规范化 JSON（struct 字段序=稳定键序）
+/// 取 FNV-1a 64。不依赖第三方 crate，跨版本稳定 —— 该值持久化在 config.json 里。
+pub fn canonical_hash(config: &Config) -> String {
+    let canon = Config {
+        providers: config.providers.clone(),
+        last_applied_hash: String::new(),
+    };
+    let json = serde_json::to_string(&canon).unwrap_or_default();
+    let mut h: u64 = 0xcbf29ce484222325;
+    for b in json.as_bytes() {
+        h ^= *b as u64;
+        h = h.wrapping_mul(0x100000001b3);
+    }
+    format!("{:016x}", h)
+}
+
 pub struct ResolvedModel {
     pub model: String,
     pub target_url: String,
@@ -378,6 +394,36 @@ mod tests {
         assert_eq!(cfg.providers[0].models[0].to_1m, "");
         assert_eq!(cfg.providers[0].thinking_effort, "");
         assert_eq!(cfg.last_applied_hash, "");
+    }
+
+    // ---- canonical_hash（应用状态机 dirty 判定） ----
+
+    #[test]
+    fn canonical_hash_ignores_last_applied_hash_field() {
+        let mut a = sample_config();
+        let mut b = sample_config();
+        a.last_applied_hash = "".into();
+        b.last_applied_hash = "something-else".into();
+        assert_eq!(canonical_hash(&a), canonical_hash(&b));
+    }
+
+    #[test]
+    fn canonical_hash_changes_on_any_provider_edit() {
+        let base = sample_config();
+        let h0 = canonical_hash(&base);
+
+        let mut c1 = sample_config();
+        c1.providers[0].api_key = "key-a2".into();
+        let mut c2 = sample_config();
+        c2.providers[0].models[0].to_1m = "".into();
+        let mut c3 = sample_config();
+        c3.providers[1].thinking_effort = "high".into();
+
+        assert_ne!(h0, canonical_hash(&c1));
+        assert_ne!(h0, canonical_hash(&c2));
+        assert_ne!(h0, canonical_hash(&c3));
+        // 同内容必同值（稳定性）
+        assert_eq!(h0, canonical_hash(&sample_config()));
     }
 
     #[test]
