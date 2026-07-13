@@ -1,11 +1,19 @@
 //! ModelLink — Tauri 入口：窗口 + 托盘 + 菜单 + 代理服务。
 //! 代理/网关/配置核心逻辑自 v1 claude-model-proxy 平移（见 proxy.rs / gateway.rs / config.rs）。
 
+use std::sync::Arc;
+
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     AppHandle, Manager,
 };
+
+mod config;
+mod gateway;
+mod proxy;
+
+use proxy::ProxyState;
 
 /// GUI 自身版本号（供前端设置页显示）。
 #[tauri::command]
@@ -36,6 +44,37 @@ pub fn run() {
             // macOS：托盘常驻、无 Dock 图标（对齐 v1 Accessory 行为）
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+
+            // ---- 代理核心（与 v1 启动序列一致：先写网关配置，再起 5678 服务） ----
+            gateway::ensure_claude_desktop_gateway();
+
+            let cfg = config::load_config();
+            let _ = config::save_config_file(&cfg);
+
+            eprintln!("ModelLink v{} — Winhao学AI (抖音搜索同名)", env!("CARGO_PKG_VERSION"));
+            eprintln!("本软件完全免费，不可商业化");
+            eprintln!("Proxy: http://127.0.0.1:{}", proxy::PORT);
+            eprintln!("Providers: {}", cfg.providers.len());
+
+            let state = Arc::new(ProxyState::new(cfg).map_err(std::io::Error::other)?);
+            app.manage(state.clone());
+
+            // 同步绑定 5678：被占用时弹原生错误对话框并退出（保留 v1 话术）
+            match tauri::async_runtime::block_on(proxy::bind()) {
+                Ok(listener) => {
+                    tauri::async_runtime::spawn(proxy::serve(listener, state));
+                }
+                Err(err) => {
+                    eprintln!("Cannot start: {}", err);
+                    use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
+                    app.dialog()
+                        .message(&err)
+                        .title("ModelLink")
+                        .kind(MessageDialogKind::Error)
+                        .blocking_show();
+                    std::process::exit(1);
+                }
+            }
 
             // macOS：显式挂应用菜单 + 编辑菜单，保证 Accessory 模式下剪贴板快捷键可用（对齐 v1）
             #[cfg(target_os = "macos")]
