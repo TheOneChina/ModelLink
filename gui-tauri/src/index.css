@@ -1,0 +1,182 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:is(.dark *));
+
+/* Outfit 变量字体（拉丁+数字），本地打包不走 CDN；中文回退 PingFang/雅黑。 */
+@font-face {
+  font-family: "Outfit";
+  src: url("./assets/fonts/outfit-latin.woff2") format("woff2");
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+    U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193,
+    U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+/* ============ 色板（docs/design.md §2，已冻结） ============ */
+:root {
+  --background: #faf9f5;
+  --foreground: #26231d;
+  --card: #ffffff;
+  --card-foreground: #26231d;
+  --popover: #ffffff;
+  --popover-foreground: #26231d;
+  --primary: #d97757;
+  --primary-foreground: #ffffff;
+  --primary-hover: #c4684a;
+  --primary-soft: rgba(217, 119, 87, 0.11);
+  --secondary: #f1eee6;
+  --secondary-foreground: #26231d;
+  --muted: #f1eee6;
+  --muted-foreground: #6f6a60;
+  --accent: #f3f0e9;
+  --accent-foreground: #26231d;
+  --destructive: #c9534c;
+  --destructive-foreground: #ffffff;
+  --border: rgba(38, 35, 29, 0.11);
+  --input: rgba(38, 35, 29, 0.11);
+  --input-bg: #ffffff;
+  --ring: #d97757;
+  --faint: #a39d91;
+  --success: #26836c;
+  --success-soft: rgba(38, 131, 108, 0.12);
+  --warning: #a97a1e;
+  --warning-soft: rgba(169, 122, 30, 0.12);
+  --sidebar: #f1eee6;
+  --sidebar-foreground: #26231d;
+  --sidebar-primary: #d97757;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #ffffff;
+  --sidebar-accent-foreground: #26231d;
+  --sidebar-border: rgba(38, 35, 29, 0.11);
+  --sidebar-ring: #d97757;
+}
+
+.dark {
+  --background: #1b1d21;
+  --foreground: #edebe3;
+  --card: #24262c;
+  --card-foreground: #edebe3;
+  --popover: #24262c;
+  --popover-foreground: #edebe3;
+  --primary: #d97757;
+  --primary-foreground: #ffffff;
+  --primary-hover: #e08a6d;
+  --primary-soft: rgba(217, 119, 87, 0.16);
+  --secondary: #26282f;
+  --secondary-foreground: #edebe3;
+  --muted: #26282f;
+  --muted-foreground: #a5a094;
+  --accent: #2a2c33;
+  --accent-foreground: #edebe3;
+  --destructive: #e0685f;
+  --destructive-foreground: #ffffff;
+  --border: rgba(255, 255, 255, 0.1);
+  --input: rgba(255, 255, 255, 0.1);
+  --input-bg: #1f2126;
+  --ring: #d97757;
+  --faint: #716c62;
+  --success: #4db8a0;
+  --success-soft: rgba(77, 184, 160, 0.15);
+  --warning: #d4a843;
+  --warning-soft: rgba(212, 168, 67, 0.15);
+  --sidebar: #17181c;
+  --sidebar-foreground: #edebe3;
+  --sidebar-primary: #d97757;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #24262c;
+  --sidebar-accent-foreground: #edebe3;
+  --sidebar-border: rgba(255, 255, 255, 0.1);
+  --sidebar-ring: #d97757;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-soft: var(--primary-soft);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-input-bg: var(--input-bg);
+  --color-ring: var(--ring);
+  --color-faint: var(--faint);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  --font-sans: "Outfit", -apple-system, BlinkMacSystemFont, "PingFang SC",
+    "Microsoft YaHei", sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  /* 圆角 token（design.md §4）：按钮/输入框 9 · 清单行 10 · 卡片 12 */
+  --radius-sm: 7px;
+  --radius-md: 9px;
+  --radius-lg: 10px;
+  --radius-xl: 12px;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    overflow: hidden; /* 桌面应用：滚动只发生在内容区内部 */
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  input,
+  textarea {
+    -webkit-user-select: auto;
+    user-select: auto;
+  }
+  /* 技术值（槽位名/模型名/URL/端口/时间戳/计数）一律 mono + 表格数字 */
+  code,
+  .mono {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+  }
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(128, 128, 128, 0.2);
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(128, 128, 128, 0.35);
+  }
+}

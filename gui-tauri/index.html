@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>ModelLink</title>
+    <script>
+      // 首帧前定主题，防切换闪烁。'theme' ∈ light | dark | system（默认 system）。
+      (function () {
+        var p = localStorage.getItem("theme") || "system";
+        var dark =
+          p === "dark" ||
+          (p === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+        document.documentElement.classList.toggle("dark", dark);
+      })();
+    </script>
+    <style>
+      /* 冷启动兜底底色（与 src/index.css --background 一致），防 WKWebView 首帧白屏。 */
+      html,
+      body {
+        margin: 0;
+        background: #faf9f5;
+      }
+      html.dark,
+      html.dark body {
+        background: #1b1d21;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

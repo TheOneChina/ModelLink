@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<dict>
+    <!-- 「应用到 Claude Desktop」用 osascript 控制 Claude（退出/重启）会触发自动化授权。 -->
+    <key>NSAppleEventsUsageDescription</key>
+    <string>ModelLink 需要控制 Claude 应用以完成配置生效（退出并重启 Claude）。</string>
+    <!-- 托盘常驻应用：不占 Dock（与 v1 行为一致，配合运行时 Accessory 激活策略）。 -->
+    <key>LSUIElement</key>
+    <true/>
+</dict>
