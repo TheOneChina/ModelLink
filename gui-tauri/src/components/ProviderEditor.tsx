@@ -117,45 +117,43 @@ export function ProviderEditor({ index }: { index: number }) {
 
   return (
     <div className="flex min-w-0 flex-1 flex-col gap-3 overflow-y-auto rounded-xl border bg-card p-4">
-      {/* API 地址 / 密钥 */}
-      <div className="grid grid-cols-[1.2fr_1fr] gap-3">
-        <div className="flex flex-col gap-[5px]">
-          <label className={fieldLabelCls}>API 地址</label>
+      {/* API 地址 / 密钥（上下两行，2026-07-14 用户调整：双列太挤） */}
+      <div className="flex flex-col gap-[5px]">
+        <label className={fieldLabelCls}>API 地址</label>
+        <Input
+          value={p.target_url}
+          onChange={(e) =>
+            updateDraft((c) => {
+              c.providers[index].target_url = e.target.value;
+            })
+          }
+          placeholder="https://…"
+          className={inputCls}
+        />
+      </div>
+      <div className="flex flex-col gap-[5px]">
+        <label className={fieldLabelCls}>API 密钥</label>
+        <div className="relative">
           <Input
-            value={p.target_url}
+            ref={keyRef}
+            type={showKey ? "text" : "password"}
+            value={p.api_key}
             onChange={(e) =>
               updateDraft((c) => {
-                c.providers[index].target_url = e.target.value;
+                c.providers[index].api_key = e.target.value;
               })
             }
-            placeholder="https://…"
-            className={inputCls}
+            placeholder="sk-…"
+            className={cn(inputCls, "w-full pr-8")}
           />
-        </div>
-        <div className="flex flex-col gap-[5px]">
-          <label className={fieldLabelCls}>API 密钥</label>
-          <div className="relative">
-            <Input
-              ref={keyRef}
-              type={showKey ? "text" : "password"}
-              value={p.api_key}
-              onChange={(e) =>
-                updateDraft((c) => {
-                  c.providers[index].api_key = e.target.value;
-                })
-              }
-              placeholder="sk-…"
-              className={cn(inputCls, "w-full pr-8")}
-            />
-            <button
-              type="button"
-              onClick={() => setShowKey((v) => !v)}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-faint transition-colors hover:text-muted-foreground"
-              aria-label={showKey ? "隐藏密钥" : "显示密钥"}
-            >
-              {showKey ? <EyeOff size={14} /> : <Eye size={14} />}
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => setShowKey((v) => !v)}
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-faint transition-colors hover:text-muted-foreground"
+            aria-label={showKey ? "隐藏密钥" : "显示密钥"}
+          >
+            {showKey ? <EyeOff size={14} /> : <Eye size={14} />}
+          </button>
         </div>
       </div>
 
@@ -221,7 +219,7 @@ export function ProviderEditor({ index }: { index: number }) {
               }
             />
             <span className="-ml-[3px] text-[10.5px] text-faint">1M</span>
-            <span className="mono w-[196px] flex-none truncate text-[10px] text-faint">
+            <span className="mono max-w-[196px] flex-none truncate text-[10px] text-faint">
               {slot ? `→ ${slot}` : ""}
             </span>
             <button
