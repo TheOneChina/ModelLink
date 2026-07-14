@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { Check, Eye, EyeOff, Loader2, X } from "lucide-react";
+import { Eye, EyeOff, Loader2, X } from "lucide-react";
+import { toast } from "sonner";
 
 import {
   AlertDialog,
@@ -55,8 +56,6 @@ export function ProviderEditor({ index }: { index: number }) {
 
   const [showKey, setShowKey] = useState(false);
   const [testing, setTesting] = useState(false);
-  const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
-  const fadeTimer = useRef<number | undefined>(undefined);
 
   // 预设引导流：跳入本页时聚焦密钥输入框
   const keyRef = useRef<HTMLInputElement>(null);
@@ -71,8 +70,6 @@ export function ProviderEditor({ index }: { index: number }) {
   // 切换服务商时清掉编辑器瞬态
   useEffect(() => {
     setShowKey(false);
-    setTestResult(null);
-    window.clearTimeout(fadeTimer.current);
   }, [index]);
 
   const p = draft?.providers[index];
@@ -84,25 +81,21 @@ export function ProviderEditor({ index }: { index: number }) {
   const name = providerDisplayName(p.target_url, index);
   const busy = applyState === "applying";
 
-  const showResult = (ok: boolean, message: string) => {
-    setTestResult({ ok, message });
-    window.clearTimeout(fadeTimer.current);
-    fadeTimer.current = window.setTimeout(() => setTestResult(null), 6000);
-  };
-
+  // 测试反馈走 toast（2026-07-14 用户调整，原 inline 结果 6s 淡出）
   const runTest = async () => {
     const first = p.models[0]?.name;
     if (!p.target_url || !p.api_key || !first) {
-      showResult(false, "请填写 API 地址、密钥和至少一个模型名。");
+      toast.error("请填写 API 地址、密钥和至少一个模型名。");
       return;
     }
     setTesting(true);
     try {
       const r = await testProvider(p.target_url, p.api_key, first);
-      showResult(r.ok, r.ok ? "连接成功 (HTTP 200)" : r.message);
+      if (r.ok) toast.success("连接成功 (HTTP 200)");
+      else toast.error(r.message);
       setTestedOk(index, r.ok);
     } catch {
-      showResult(false, "请求失败。");
+      toast.error("请求失败。");
     }
     setTesting(false);
   };
@@ -157,33 +150,18 @@ export function ProviderEditor({ index }: { index: number }) {
         </div>
       </div>
 
-      {/* 模型区标签行 + 测试连接 */}
+      {/* 模型区标签行 + 测试连接（结果弹 toast） */}
       <div className="flex items-center justify-between">
         <label className={fieldLabelCls}>模型 · 右侧为 Claude 中显示的名称</label>
-        <div className="flex items-center gap-[9px]">
-          {testResult && (
-            <span
-              className={cn(
-                "flex items-center gap-[5px] text-[11.5px] font-medium",
-                testResult.ok ? "text-success" : "text-destructive",
-              )}
-            >
-              {testResult.ok && <Check size={12} strokeWidth={2.2} />}
-              <span className="max-w-[240px] truncate" title={testResult.message}>
-                {testResult.message}
-              </span>
-            </span>
-          )}
-          <Button
-            variant="outline"
-            onClick={runTest}
-            disabled={testing}
-            className="h-[29px] rounded-[9px] bg-card px-3 text-xs font-medium shadow-none dark:border-border dark:bg-card"
-          >
-            {testing && <Loader2 size={12} className="animate-spin" />}
-            测试连接
-          </Button>
-        </div>
+        <Button
+          variant="outline"
+          onClick={runTest}
+          disabled={testing}
+          className="h-[29px] rounded-[9px] bg-card px-3 text-xs font-medium shadow-none dark:border-border dark:bg-card"
+        >
+          {testing && <Loader2 size={12} className="animate-spin" />}
+          测试连接
+        </Button>
       </div>
 
       {/* 模型行 */}
