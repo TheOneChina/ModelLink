@@ -87,7 +87,7 @@ export function SettingsPage() {
       </header>
 
       <div className="flex flex-1 flex-col overflow-y-auto px-6 pb-6 pt-0.5">
-        <div className="max-w-[470px] rounded-xl border bg-card">
+        <div className="rounded-xl border bg-card">
           {/* 外观 */}
           <div className="flex items-center justify-between px-4 py-3">
             <div>
