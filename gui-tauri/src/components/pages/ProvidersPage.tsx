@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 import { ApplyPill } from "@/components/ApplyStatus";
 import { PresetGrid } from "@/components/PresetGrid";
+import { ProviderAvatar, logoForUrl } from "@/components/ProviderAvatar";
 import { ProviderEditor } from "@/components/ProviderEditor";
 import {
   Dialog,
@@ -70,9 +71,7 @@ export function ProvidersPage() {
                         : "hover:border-primary/30",
                     )}
                   >
-                    <span className="flex size-[26px] flex-none items-center justify-center rounded-full bg-primary-soft text-[11px] font-bold text-primary">
-                      {name[0]}
-                    </span>
+                    <ProviderAvatar logo={logoForUrl(p.target_url)} letter={name[0]} />
                     <span className="min-w-0">
                       <span className="block truncate text-[12.5px] font-semibold text-foreground">
                         {name}

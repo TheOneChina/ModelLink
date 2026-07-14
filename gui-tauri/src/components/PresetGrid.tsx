@@ -1,3 +1,4 @@
+import { ProviderAvatar, presetLogo } from "@/components/ProviderAvatar";
 import { PRESETS, presetHost, type Preset } from "@/lib/presets";
 
 // 预设短名（design.md §7 网格 tile 文案；创建服务商仍用 PRESETS 完整数据）
@@ -24,9 +25,7 @@ export function PresetGrid({ onPick }: { onPick: (p: Preset | "custom") => void 
             onClick={() => onPick(p)}
             className="flex items-center gap-[9px] rounded-[11px] border bg-card px-3 py-[11px] text-left transition-colors hover:border-primary/50"
           >
-            <span className="flex size-[26px] flex-none items-center justify-center rounded-full bg-primary-soft text-[11px] font-bold text-primary">
-              {name[0]}
-            </span>
+            <ProviderAvatar logo={presetLogo(p.id)} letter={name[0]} />
             <span className="min-w-0 flex-1">
               <span className="block text-xs font-semibold leading-[1.3] text-foreground">
                 {name}

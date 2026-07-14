@@ -1,6 +1,7 @@
 import { motion } from "framer-motion";
 import { ArrowRight } from "lucide-react";
 
+import { ProviderAvatar, logoForUrl } from "@/components/ProviderAvatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAppStore } from "@/lib/store";
 import { useTheme } from "@/lib/theme";
@@ -76,9 +77,11 @@ export function LinkBoard() {
                 )}
               </span>
               <span className="flex flex-none items-center gap-[5px] rounded-full border bg-background py-[2px] pl-[3px] pr-2 text-[10.5px] text-muted-foreground">
-                <span className="flex size-[15px] flex-none items-center justify-center rounded-full bg-primary-soft text-[9px] font-bold text-primary">
-                  {providerDisplayName(draft.providers[e.providerIndex]?.target_url ?? "", e.providerIndex)[0]}
-                </span>
+                <ProviderAvatar
+                  logo={logoForUrl(draft.providers[e.providerIndex]?.target_url ?? "")}
+                  letter={providerDisplayName(draft.providers[e.providerIndex]?.target_url ?? "", e.providerIndex)[0]}
+                  size={15}
+                />
                 {providerDisplayName(draft.providers[e.providerIndex]?.target_url ?? "", e.providerIndex)}
               </span>
             </motion.button>
