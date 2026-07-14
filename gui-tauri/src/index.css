@@ -162,6 +162,14 @@
     -webkit-user-select: auto;
     user-select: auto;
   }
+  /* Tailwind v4 preflight 不再给按钮手型光标，桌面 app 里可点元素统一补回 */
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  a,
+  select,
+  summary {
+    cursor: pointer;
+  }
   /* 技术值（槽位名/模型名/URL/端口/时间戳/计数）一律 mono + 表格数字 */
   code,
   .mono {
