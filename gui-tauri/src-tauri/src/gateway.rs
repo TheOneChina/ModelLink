@@ -436,45 +436,6 @@ impl<F: FnOnce()> Drop for ScopeGuard<F> {
 }
 fn scopeguard<F: FnOnce()>(f: F) -> ScopeGuard<F> { ScopeGuard(Some(f)) }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::config::{flatten_config, ModelEntry, Provider};
-
-    #[test]
-    fn inference_models_carry_label_override_and_1m() {
-        let cfg = Config {
-            providers: vec![Provider {
-                target_url: "https://a.example.com".into(),
-                api_key: "k".into(),
-                models: vec![
-                    ModelEntry { name: "Kimi-k2.6".into(), to_1m: "auto".into() },
-                    ModelEntry { name: "mimo-v2.5-pro".into(), to_1m: "".into() },
-                ],
-                thinking_effort: String::new(),
-            }],
-            ..Default::default()
-        };
-        let entries = inference_models_entries(&flatten_config(&cfg));
-        assert_eq!(
-            entries[0],
-            serde_json::json!({
-                "name": "claude-3-opus-latest",
-                "supports1m": true,
-                "labelOverride": "Kimi-k2.6"
-            })
-        );
-        assert_eq!(
-            entries[1],
-            serde_json::json!({
-                "name": "claude-3-5-sonnet-latest",
-                "supports1m": false,
-                "labelOverride": "mimo-v2.5-pro"
-            })
-        );
-    }
-}
-
 static RESTARTING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 pub fn restart_claude_desktop() {
@@ -524,4 +485,43 @@ pub fn restart_claude_desktop() {
             eprintln!("[restart] Claude Desktop restarted.");
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::{flatten_config, ModelEntry, Provider};
+
+    #[test]
+    fn inference_models_carry_label_override_and_1m() {
+        let cfg = Config {
+            providers: vec![Provider {
+                target_url: "https://a.example.com".into(),
+                api_key: "k".into(),
+                models: vec![
+                    ModelEntry { name: "Kimi-k2.6".into(), to_1m: "auto".into() },
+                    ModelEntry { name: "mimo-v2.5-pro".into(), to_1m: "".into() },
+                ],
+                thinking_effort: String::new(),
+            }],
+            ..Default::default()
+        };
+        let entries = inference_models_entries(&flatten_config(&cfg));
+        assert_eq!(
+            entries[0],
+            serde_json::json!({
+                "name": "claude-3-opus-latest",
+                "supports1m": true,
+                "labelOverride": "Kimi-k2.6"
+            })
+        );
+        assert_eq!(
+            entries[1],
+            serde_json::json!({
+                "name": "claude-3-5-sonnet-latest",
+                "supports1m": false,
+                "labelOverride": "mimo-v2.5-pro"
+            })
+        );
+    }
 }
