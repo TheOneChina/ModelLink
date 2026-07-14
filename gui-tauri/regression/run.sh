@@ -70,12 +70,31 @@ echo "=== DIFF 响应（状态码/透传体/404/502 话术） ==="
 for f in r1.status r1.body notfound.status notfound.body nomodel.status nomodel.body; do
   if diff "$EQ/out-old/$f" "$EQ/out-new/$f" >/dev/null; then echo "✓ $f"; else echo "✗ $f"; fail=1; fi
 done
-echo "=== 网关写入对比（Claude-3p，红线 #3） ==="
-for f in "configLibrary/a0a0a0a0-b1b1-4c2c-9d3d-e4e4e4e4e4e4.json" "configLibrary/_meta.json" "claude_desktop_config.json"; do
-  o="$EQ/home-old/Library/Application Support/Claude-3p/$f"
-  n="$EQ/home-new/Library/Application Support/Claude-3p/$f"
-  if diff "$o" "$n" >/dev/null 2>&1; then echo "✓ $f"; else echo "✗ $f"; fail=1; fi
-done
+echo "=== 网关写入对比（Claude-3p，红线 #3；labelOverride 为 2026-07-14 拍板例外） ==="
+if python3 - "$EQ" <<'PY'
+import json, sys, pathlib
+eq = pathlib.Path(sys.argv[1])
+base = "Library/Application Support/Claude-3p"
+fails = 0
+cases = [
+    ("configLibrary/a0a0a0a0-b1b1-4c2c-9d3d-e4e4e4e4e4e4.json", True),
+    ("configLibrary/_meta.json", False),
+    ("claude_desktop_config.json", False),
+]
+for rel, allow_label in cases:
+    o = json.load(open(eq / "home-old" / base / rel))
+    n = json.load(open(eq / "home-new" / base / rel))
+    if allow_label:
+        for m in n.get("inferenceModels", []):
+            if m.pop("labelOverride", None) is None:
+                print(f"✗ {rel}: 新版条目缺 labelOverride"); fails += 1
+    if o == n:
+        print(f"✓ {rel}" + ("（剔除 labelOverride 后与 v1 一致）" if allow_label else ""))
+    else:
+        print(f"✗ {rel} 结构不一致"); fails += 1
+sys.exit(1 if fails else 0)
+PY
+then :; else fail=1; fi
 echo "=== LaunchAgent 迁移（红线 #5） ==="
 if [ -f "$EQ/home-new/Library/LaunchAgents/com.modellink.plist" ]; then echo "✗ 旧 plist 未删除"; fail=1; else echo "✓ 旧 com.modellink.plist 已删除"; fi
 ls "$EQ/home-new/Library/LaunchAgents/" 2>/dev/null | sed 's/^/  新注册: /'

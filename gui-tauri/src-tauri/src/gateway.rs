@@ -215,6 +215,23 @@ pub fn ensure_claude_desktop_gateway() {
     eprintln!("[auto-config] done.");
 }
 
+/// apply 写入的 inferenceModels 条目。
+/// 2026-07-14 用户拍板的红线例外：在 v1 的 {name, supports1m} 基础上新增
+/// labelOverride=厂商模型名，让新版 Claude（模型列表功能 ≥1.2581.0）的选择器
+/// 显示真实模型名；官方语义 "Display-only; name is still what the app sends"，
+/// 槽位路由机制不变，老版 Claude 忽略未知字段。
+fn inference_models_entries(flat: &[crate::config::FlatEntry]) -> Vec<serde_json::Value> {
+    flat.iter()
+        .map(|e| {
+            serde_json::json!({
+                "name": e.slot,
+                "supports1m": !e.to_1m.is_empty(),
+                "labelOverride": e.name
+            })
+        })
+        .collect()
+}
+
 pub fn apply_to_claude_desktop(config: &Config) -> Result<String, String> {
     if config.providers.is_empty() {
         return Err("Please add at least one provider.".to_string());
@@ -250,15 +267,7 @@ pub fn apply_to_claude_desktop(config: &Config) -> Result<String, String> {
     })?;
 
     let flat = flatten_config(config);
-    let models: Vec<serde_json::Value> = flat
-        .iter()
-        .map(|e| {
-            serde_json::json!({
-                "name": e.slot,
-                "supports1m": !e.to_1m.is_empty()
-            })
-        })
-        .collect();
+    let models = inference_models_entries(&flat);
 
     let meta_path = config_lib.join("_meta.json");
     let mut meta: serde_json::Value = if meta_path.exists() {
@@ -427,6 +436,45 @@ impl<F: FnOnce()> Drop for ScopeGuard<F> {
     fn drop(&mut self) { if let Some(f) = self.0.take() { f(); } }
 }
 fn scopeguard<F: FnOnce()>(f: F) -> ScopeGuard<F> { ScopeGuard(Some(f)) }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::{flatten_config, ModelEntry, Provider};
+
+    #[test]
+    fn inference_models_carry_label_override_and_1m() {
+        let cfg = Config {
+            providers: vec![Provider {
+                target_url: "https://a.example.com".into(),
+                api_key: "k".into(),
+                models: vec![
+                    ModelEntry { name: "Kimi-k2.6".into(), to_1m: "auto".into() },
+                    ModelEntry { name: "mimo-v2.5-pro".into(), to_1m: "".into() },
+                ],
+                thinking_effort: String::new(),
+            }],
+            ..Default::default()
+        };
+        let entries = inference_models_entries(&flatten_config(&cfg));
+        assert_eq!(
+            entries[0],
+            serde_json::json!({
+                "name": "claude-3-opus-latest",
+                "supports1m": true,
+                "labelOverride": "Kimi-k2.6"
+            })
+        );
+        assert_eq!(
+            entries[1],
+            serde_json::json!({
+                "name": "claude-3-5-sonnet-latest",
+                "supports1m": false,
+                "labelOverride": "mimo-v2.5-pro"
+            })
+        );
+    }
+}
 
 static RESTARTING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
