@@ -7,8 +7,10 @@
 # 路径拼接、404/502 话术、Claude-3p 网关写入、LaunchAgent 迁移。
 #
 # 用法：OLD_BIN=<v1 可执行> NEW_BIN=<v2 可执行> bash regression/run.sh
-#   注意 v1 二进制若带 com.apple.quarantine 会被 Gatekeeper 静默击杀，
-#   先 cp 出来 xattr -c。
+#   v1 二进制取自仓库根 ModelLink-macOS.zip（或 GitHub v1.2.0 release）：
+#     unzip -o ModelLink-macOS.zip -d /tmp/mlv1 && xattr -cr /tmp/mlv1
+#     OLD_BIN=/tmp/mlv1/ModelLink.app/Contents/MacOS/modellink
+#   （带 com.apple.quarantine 的裸二进制会被 Gatekeeper 静默击杀，xattr -c 必做）
 set -euo pipefail
 EQ="$(mktemp -d /tmp/modellink-equiv.XXXXXX)"
 HERE="$(cd "$(dirname "$0")" && pwd)"
