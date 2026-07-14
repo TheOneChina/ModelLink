@@ -82,6 +82,13 @@ mockIPC(async (cmd, payload) => {
       return { ok: true, message: "Connection successful! (HTTP 200)" };
     case "force_quit_and_relaunch":
       return null;
+    case "proxy_status":
+      return { running: !params.has("portdown"), port: store.port ?? 5678 };
+    case "set_port": {
+      await sleep(400);
+      store.port = args.port as number;
+      return { running: true, port: store.port };
+    }
     case "plugin:app|version":
       return "2.0.0";
     case "plugin:autostart|is_enabled":

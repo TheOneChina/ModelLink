@@ -25,7 +25,17 @@ pub const ANTHROPIC_SLOTS: &[&str] = &[
     "claude-3-5-sonnet-20240620",
 ];
 
-#[derive(Serialize, Deserialize, Clone, Default)]
+pub const DEFAULT_PORT: u16 = 5678;
+
+fn default_port() -> u16 {
+    DEFAULT_PORT
+}
+
+fn is_default_port(p: &u16) -> bool {
+    *p == DEFAULT_PORT
+}
+
+#[derive(Serialize, Deserialize, Clone)]
 pub struct Config {
     #[serde(default)]
     pub providers: Vec<Provider>,
@@ -36,6 +46,21 @@ pub struct Config {
     /// 2.0 新增：上次应用的时间（Unix 秒，字符串）。空值不序列化，同上。
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub last_applied_at: String,
+    /// 2.0 新增（2026-07-14 用户拍板）：代理监听端口，后端专管（set_port 命令热切换）。
+    /// 默认 5678 时不序列化 —— 红线 #1 对默认值成立，老用户文件格式不变。
+    #[serde(default = "default_port", skip_serializing_if = "is_default_port")]
+    pub port: u16,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            providers: Vec::new(),
+            last_applied_hash: String::new(),
+            last_applied_at: String::new(),
+            port: DEFAULT_PORT,
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Default)]
@@ -127,11 +152,13 @@ pub fn save_config_file(config: &Config) -> Result<(), String> {
     Ok(())
 }
 
-/// 规范化配置摘要（design.md §8）：对 providers 的规范化 JSON（struct 字段序=稳定键序）
+/// 规范化配置摘要（design.md §8）：对 providers + port 的规范化 JSON（稳定键序）
 /// 取 FNV-1a 64。不依赖第三方 crate，跨版本稳定 —— 该值持久化在 config.json 里。
+/// port 参与哈希（改端口须重新应用），默认 5678 时不序列化 → 老 hash 不受升级影响。
 pub fn canonical_hash(config: &Config) -> String {
     let canon = Config {
         providers: config.providers.clone(),
+        port: config.port,
         ..Default::default()
     };
     let json = serde_json::to_string(&canon).unwrap_or_default();
@@ -430,6 +457,33 @@ mod tests {
         assert_ne!(h0, canonical_hash(&c3));
         // 同内容必同值（稳定性）
         assert_eq!(h0, canonical_hash(&sample_config()));
+    }
+
+    // ---- port 字段（2026-07-14 新增，默认值不序列化保证 v1 格式兼容） ----
+
+    #[test]
+    fn port_defaults_to_5678_and_is_omitted_when_default() {
+        let cfg: Config = serde_json::from_str(r#"{"providers":[]}"#).unwrap();
+        assert_eq!(cfg.port, 5678);
+        assert_eq!(Config::default().port, 5678);
+        let out = serde_json::to_string(&Config::default()).unwrap();
+        assert!(!out.contains("port"));
+    }
+
+    #[test]
+    fn custom_port_round_trips_and_affects_hash() {
+        let mut cfg = sample_config();
+        cfg.port = 5679;
+        let out = serde_json::to_string(&cfg).unwrap();
+        assert!(out.contains("\"port\":5679"));
+        let back: Config = serde_json::from_str(&out).unwrap();
+        assert_eq!(back.port, 5679);
+
+        let mut base = sample_config();
+        assert_ne!(canonical_hash(&base), canonical_hash(&cfg));
+        // 显式 5678 与缺省等价（skip_serializing_if）
+        base.port = 5678;
+        assert_eq!(canonical_hash(&base), canonical_hash(&sample_config()));
     }
 
     #[test]

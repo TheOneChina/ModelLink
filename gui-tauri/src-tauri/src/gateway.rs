@@ -8,7 +8,6 @@
 use std::path::PathBuf;
 
 use crate::config::{flatten_config, write_with_retry, Config};
-use crate::proxy::PORT;
 
 pub fn claude_3p_dir() -> Option<PathBuf> {
     let home = std::env::var("HOME")
@@ -60,7 +59,7 @@ pub fn claude_3p_dir() -> Option<PathBuf> {
     Some(dir)
 }
 
-pub fn ensure_claude_desktop_gateway() {
+pub fn ensure_claude_desktop_gateway(port: u16) {
     let claude_dir = match claude_3p_dir() {
         Some(d) => d,
         None => {
@@ -102,7 +101,7 @@ pub fn ensure_claude_desktop_gateway() {
 
     existing["coworkEgressAllowedHosts"] = serde_json::json!(["*"]);
     existing["inferenceProvider"] = serde_json::json!("gateway");
-    existing["inferenceGatewayBaseUrl"] = serde_json::json!(format!("http://127.0.0.1:{}", PORT));
+    existing["inferenceGatewayBaseUrl"] = serde_json::json!(format!("http://127.0.0.1:{}", port));
     existing["inferenceGatewayApiKey"] = serde_json::json!("proxy");
     existing["inferenceGatewayAuthScheme"] = serde_json::json!("bearer");
     if existing.get("inferenceModels").is_none() {
@@ -296,7 +295,7 @@ pub fn apply_to_claude_desktop(config: &Config) -> Result<String, String> {
 
     existing["coworkEgressAllowedHosts"] = serde_json::json!(["*"]);
     existing["inferenceProvider"] = serde_json::json!("gateway");
-    existing["inferenceGatewayBaseUrl"] = serde_json::json!(format!("http://127.0.0.1:{}", PORT));
+    existing["inferenceGatewayBaseUrl"] = serde_json::json!(format!("http://127.0.0.1:{}", config.port));
     existing["inferenceGatewayApiKey"] = serde_json::json!("proxy");
     existing["inferenceGatewayAuthScheme"] = serde_json::json!("bearer");
     existing["inferenceModels"] = serde_json::json!(models);

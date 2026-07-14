@@ -15,6 +15,7 @@ import {
   configHash,
   getConfig,
   saveConfig,
+  setPort as ipcSetPort,
   type Config,
   type Provider,
 } from "@/lib/ipc";
@@ -55,6 +56,8 @@ type Store = {
   setTestedOk: (index: number, ok: boolean) => void;
   /** 服务商增删后索引失效，整体清空。 */
   resetTested: () => void;
+  /** 端口热切换：成功后同步草稿 port + 刷新状态 + dirty 重算。 */
+  changePort: (port: number) => Promise<void>;
 };
 
 const Ctx = createContext<Store | null>(null);
@@ -195,6 +198,19 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
 
   const resetTested = useCallback(() => setTestedOkMap({}), []);
 
+  const changePort = useCallback(
+    async (port: number) => {
+      const status = await ipcSetPort(port); // 失败抛错，由调用方 toast
+      setDraft((prev) => (prev ? { ...prev, port: status.port } : prev));
+      await qc.invalidateQueries({ queryKey: ["proxy-status"] });
+      await qc.invalidateQueries({ queryKey: ["config"] });
+      // 端口参与 canonical hash：切换后触发 dirty 重算（提示重新应用）
+      window.setTimeout(() => void flushSave(), 0);
+      toast.success(`代理已切换到 127.0.0.1:${status.port}，请重新应用到 Claude Desktop`);
+    },
+    [flushSave, qc],
+  );
+
   const applyState: ApplyState = applying
     ? "applying"
     : applyError
@@ -222,6 +238,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
         testedOk,
         setTestedOk,
         resetTested,
+        changePort,
       }}
     >
       {children}

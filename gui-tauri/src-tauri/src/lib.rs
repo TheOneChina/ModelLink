@@ -60,34 +60,34 @@ pub fn run() {
             #[cfg(target_os = "macos")]
             migrate_old_launch_agent(app);
 
-            // ---- 代理核心（与 v1 启动序列一致：先写网关配置，再起 5678 服务） ----
-            gateway::ensure_claude_desktop_gateway();
-
+            // ---- 代理核心（与 v1 启动序列一致：先写网关配置，再起代理服务） ----
             let cfg = config::load_config();
+            let port = cfg.port;
+            gateway::ensure_claude_desktop_gateway(port);
             let _ = config::save_config_file(&cfg);
 
             eprintln!("ModelLink v{} — Winhao学AI (抖音搜索同名)", env!("CARGO_PKG_VERSION"));
             eprintln!("本软件完全免费，不可商业化");
-            eprintln!("Proxy: http://127.0.0.1:{}", proxy::PORT);
+            eprintln!("Proxy: http://127.0.0.1:{}", port);
             eprintln!("Providers: {}", cfg.providers.len());
 
             let state = Arc::new(ProxyState::new(cfg).map_err(std::io::Error::other)?);
             app.manage(state.clone());
 
-            // 同步绑定 5678：被占用时弹原生错误对话框并退出（保留 v1 话术）
-            match tauri::async_runtime::block_on(proxy::bind()) {
+            // 同步绑定端口。被占用时不再退出（2026-07-14 用户拍板）：
+            // 弹提示后继续运行，侧栏显示「代理未运行」，用户可在设置页换端口自救。
+            match tauri::async_runtime::block_on(proxy::bind(port)) {
                 Ok(listener) => {
-                    tauri::async_runtime::spawn(proxy::serve(listener, state));
+                    state.start_serving(listener, port);
                 }
                 Err(err) => {
-                    eprintln!("Cannot start: {}", err);
+                    eprintln!("Cannot start proxy: {}", err);
                     use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
                     app.dialog()
-                        .message(&err)
+                        .message(format!("{}\n\n也可以在「设置」页更换代理端口。", err))
                         .title("ModelLink")
                         .kind(MessageDialogKind::Error)
-                        .blocking_show();
-                    std::process::exit(1);
+                        .show(|_| {});
                 }
             }
 
@@ -156,6 +156,8 @@ pub fn run() {
             commands::test_provider,
             commands::apply_to_claude,
             commands::get_logs,
+            commands::proxy_status,
+            commands::set_port,
             commands::force_quit_and_relaunch
         ])
         .run(tauri::generate_context!())

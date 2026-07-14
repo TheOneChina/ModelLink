@@ -16,12 +16,12 @@ use axum::{
 };
 use reqwest::Client;
 use serde::Serialize;
-use std::sync::{Arc, RwLock};
+use std::sync::atomic::{AtomicBool, AtomicU16, Ordering};
+use std::sync::{Arc, Mutex, RwLock};
 use tokio::net::TcpListener;
 
 use crate::config::{flatten_config, resolve_model, Config, ResolvedModel};
 
-pub const PORT: u16 = 5678;
 pub const MAX_LOGS: usize = 100;
 
 #[derive(Serialize, Clone)]
@@ -32,11 +32,17 @@ pub struct LogEntry {
     pub thinking: String,
 }
 
-/// 代理与命令层共享的全局状态（与 v1 AppState 同构）。
+/// 代理与命令层共享的全局状态（与 v1 AppState 同构 + 2.0 运行态：端口热切换）。
 pub struct ProxyState {
     pub config: RwLock<Config>,
     pub client: Client,
     pub logs: RwLock<Vec<LogEntry>>,
+    /// 代理是否在监听（端口被占时为 false，app 不退出，侧栏显示未运行）。
+    pub running: AtomicBool,
+    /// 实际绑定的端口（未运行时无意义）。
+    pub bound_port: AtomicU16,
+    /// 当前 serve 任务句柄，切换端口时 abort 旧任务释放监听。
+    pub serve_handle: Mutex<Option<tauri::async_runtime::JoinHandle<()>>>,
 }
 
 impl ProxyState {
@@ -49,7 +55,22 @@ impl ProxyState {
                 .build()
                 .map_err(|e| format!("Failed to create HTTP client: {}", e))?,
             logs: RwLock::new(Vec::new()),
+            running: AtomicBool::new(false),
+            bound_port: AtomicU16::new(0),
+            serve_handle: Mutex::new(None),
         })
+    }
+
+    /// 在已绑定的 listener 上启动 serve 任务并登记运行态（替换旧任务）。
+    pub fn start_serving(self: &Arc<Self>, listener: TcpListener, port: u16) {
+        let mut guard = self.serve_handle.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(old) = guard.take() {
+            old.abort();
+        }
+        let state = self.clone();
+        *guard = Some(tauri::async_runtime::spawn(serve(listener, state)));
+        self.running.store(true, Ordering::SeqCst);
+        self.bound_port.store(port, Ordering::SeqCst);
     }
 }
 
@@ -236,11 +257,11 @@ async fn proxy_fallback(
     (status, headers, body).into_response()
 }
 
-/// 绑定 5678。失败时返回 v1 原话术（含「请先关闭另一个实例」语义），由调用方弹窗退出。
-pub async fn bind() -> Result<TcpListener, String> {
-    TcpListener::bind(format!("127.0.0.1:{}", PORT))
+/// 绑定端口。失败时返回 v1 原话术（含「请先关闭另一个实例」语义），由调用方提示。
+pub async fn bind(port: u16) -> Result<TcpListener, String> {
+    TcpListener::bind(format!("127.0.0.1:{}", port))
         .await
-        .map_err(|e| format!("Port {} already in use: {}. Please close the other instance first.", PORT, e))
+        .map_err(|e| format!("Port {} already in use: {}. Please close the other instance first.", port, e))
 }
 
 /// 在已绑定的 listener 上常驻服务。axum 只保留代理职责：/v1/models + fallback 转发。

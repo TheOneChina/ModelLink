@@ -23,11 +23,13 @@ pub fn get_config(state: State<'_, Arc<ProxyState>>) -> Config {
 
 #[tauri::command]
 pub fn save_config(state: State<'_, Arc<ProxyState>>, mut config: Config) -> Result<(), String> {
-    // applied 哈希/时间由后端专管（apply_to_claude 里更新），忽略前端回传值防止漂移。
+    // applied 哈希/时间/端口由后端专管（apply_to_claude / set_port 里更新），
+    // 忽略前端回传值防止漂移。
     {
         let cur = state.config.read().unwrap_or_else(|e| e.into_inner());
         config.last_applied_hash = cur.last_applied_hash.clone();
         config.last_applied_at = cur.last_applied_at.clone();
+        config.port = cur.port;
     }
     save_config_file(&config)?;
     *state.config.write().unwrap_or_else(|e| e.into_inner()) = config;
@@ -152,6 +154,55 @@ pub async fn apply_to_claude(state: State<'_, Arc<ProxyState>>) -> Result<String
 #[tauri::command]
 pub fn get_logs(state: State<'_, Arc<ProxyState>>) -> Vec<LogEntry> {
     state.logs.read().unwrap_or_else(|e| e.into_inner()).clone()
+}
+
+#[derive(Serialize)]
+pub struct ProxyStatus {
+    pub running: bool,
+    pub port: u16,
+}
+
+fn read_status(state: &ProxyState) -> ProxyStatus {
+    use std::sync::atomic::Ordering;
+    let running = state.running.load(Ordering::SeqCst);
+    let port = if running {
+        state.bound_port.load(Ordering::SeqCst)
+    } else {
+        state.config.read().unwrap_or_else(|e| e.into_inner()).port
+    };
+    ProxyStatus { running, port }
+}
+
+/// 侧栏状态块数据：代理是否在监听 + 端口。
+#[tauri::command]
+pub fn proxy_status(state: State<'_, Arc<ProxyState>>) -> ProxyStatus {
+    read_status(&state)
+}
+
+/// 端口热切换（2026-07-14 用户拍板）：先绑新端口再放旧的，失败不影响现有服务；
+/// 成功后持久化 config.port 并立即改写 Claude 网关 URL（模型列表沿用，须重新应用重启 Claude）。
+#[tauri::command]
+pub async fn set_port(state: State<'_, Arc<ProxyState>>, port: u16) -> Result<ProxyStatus, String> {
+    use std::sync::atomic::Ordering;
+
+    if port < 1024 {
+        return Err("端口需在 1024–65535 之间".into());
+    }
+    if state.running.load(Ordering::SeqCst) && state.bound_port.load(Ordering::SeqCst) == port {
+        return Ok(read_status(&state));
+    }
+
+    let listener = crate::proxy::bind(port).await?;
+    state.inner().start_serving(listener, port);
+
+    let mut config = state.config.read().unwrap_or_else(|e| e.into_inner()).clone();
+    config.port = port;
+    save_config_file(&config)?;
+    *state.config.write().unwrap_or_else(|e| e.into_inner()) = config;
+
+    gateway::ensure_claude_desktop_gateway(port);
+    eprintln!("[port] switched to 127.0.0.1:{}", port);
+    Ok(read_status(&state))
 }
 
 /// 自动更新装完后的可靠重启（移植 ClaudeCN）：兜底 Tauri v2 在 macOS 上 relaunch()

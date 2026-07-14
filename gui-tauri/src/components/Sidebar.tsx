@@ -1,10 +1,11 @@
 import { useRef } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Layers, Link, ScrollText, SlidersHorizontal, Zap } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { proxyStatus } from "@/lib/ipc";
 import { useAppStore, type Page } from "@/lib/store";
 import { useWatermark } from "@/lib/useWatermark";
-import { PORT_LABEL } from "@/components/port";
 
 const NAV: { key: Page; label: string; Icon: typeof Zap }[] = [
   { key: "overview", label: "概览", Icon: Zap },
@@ -18,6 +19,10 @@ export function Sidebar() {
   const { page, setPage, applyState } = useAppStore();
   const wmHost = useRef<HTMLDivElement>(null);
   useWatermark(wmHost);
+
+  const statusQ = useQuery({ queryKey: ["proxy-status"], queryFn: proxyStatus });
+  const running = statusQ.data?.running ?? true;
+  const port = statusQ.data?.port ?? 5678;
 
   const showDirtyDot = applyState === "dirty" || applyState === "error";
 
@@ -56,11 +61,18 @@ export function Sidebar() {
       <div className="flex-1" />
 
       <div className="flex flex-col gap-[3px] border-t border-sidebar-border px-2.5 pb-1 pt-[11px]">
-        <div className="flex items-center gap-1.5 text-[11.5px] font-semibold text-success">
-          <span className="size-1.5 flex-none rounded-full bg-current" />
-          代理运行中
-        </div>
-        <div className="mono pl-3 text-[10px] text-faint">{PORT_LABEL}</div>
+        {running ? (
+          <div className="flex items-center gap-1.5 text-[11.5px] font-semibold text-success">
+            <span className="size-1.5 flex-none rounded-full bg-current" />
+            代理运行中
+          </div>
+        ) : (
+          <div className="flex items-center gap-1.5 text-[11.5px] font-semibold text-warning">
+            <span className="size-1.5 flex-none rounded-full bg-current" />
+            代理未运行（端口被占）
+          </div>
+        )}
+        <div className="mono pl-3 text-[10px] text-faint">127.0.0.1:{port}</div>
       </div>
 
       {/* 水印宿主：内容由 useWatermark 以命令式 DOM 维护（防篡改） */}

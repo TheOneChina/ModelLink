@@ -26,7 +26,11 @@ export type Config = {
   last_applied_hash?: string;
   /** 上次应用时间（Unix 秒字符串）。 */
   last_applied_at?: string;
+  /** 代理端口（后端专管，set_port 热切换；缺省 5678）。 */
+  port?: number;
 };
+
+export type ProxyStatus = { running: boolean; port: number };
 
 export type LogEntry = {
   time: string;
@@ -45,3 +49,5 @@ export const testProvider = (targetUrl: string, apiKey: string, model: string) =
   invoke<TestResult>("test_provider", { targetUrl, apiKey, model });
 export const applyToClaude = () => invoke<string>("apply_to_claude");
 export const getLogs = () => invoke<LogEntry[]>("get_logs");
+export const proxyStatus = () => invoke<ProxyStatus>("proxy_status");
+export const setPort = (port: number) => invoke<ProxyStatus>("set_port", { port });

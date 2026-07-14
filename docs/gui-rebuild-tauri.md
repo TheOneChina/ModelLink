@@ -25,6 +25,7 @@
 ## 3. 兼容红线（老用户无感升级，逐条验收）
 
 1. **代理端口 5678 不变**——老用户 Claude Desktop 配置写死 `http://127.0.0.1:5678`。
+   > 2026-07-14 用户拍板补充：**默认值恒为 5678**（红线对默认值成立，config.json 仅在非默认时写 `port` 字段），但用户可在设置页热切换端口——ModelLink 同时改写 Claude 网关 URL，重新应用后 Claude 跟随。端口被占时不再退出：弹提示 + 侧栏「代理未运行」，可进设置页换端口自救。
 2. **配置文件 `~/.claude-model-proxy/config.json` 路径与 serde 格式不变**——`providers[] { target_url, api_key, models[] { name, to_1m }, thinking_effort }`，原子写入（tmp+rename）、unix 0600。
 3. **Claude-3p 网关写入逻辑逐字节等价**——`configLibrary/` 的固定 UUID `a0a0a0a0-b1b1-4c2c-9d3d-e4e4e4e4e4e4`、`_meta.json` 合并规则、`claude_desktop_config.json` 的 `deploymentMode: "3p"`、Windows 的 MSIX/LOCALAPPDATA/APPDATA 多路径 fallback 与 developer_settings/config.json 写入，全部照搬 `main.rs:230-640`。
    > 2026-07-14 用户拍板的唯一例外：apply 写入的 `inferenceModels` 条目在 `{name, supports1m}` 基础上新增 `labelOverride`=厂商模型名（新版 Claude 模型选择器显示真实模型名；官方语义 display-only，`name` 仍是请求所发 ID，槽位路由机制不变；老版 Claude 忽略未知字段）。其余写入仍逐字节等价，回归脚本按「剔除 labelOverride 后一致」校验。

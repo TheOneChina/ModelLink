@@ -49,6 +49,14 @@ run_one() { # $1=label $2=binary $3=home
   sleep 0.5
 }
 
+# 防呆：5678/9999 必须空闲（正在跑的 ModelLink 会让 wait_port 等到错误对象）
+for p in 5678 9999; do
+  if lsof -nP -i ":$p" -sTCP:LISTEN >/dev/null 2>&1; then
+    echo "✗ 端口 $p 被占用（先退出正在运行的 ModelLink / 其他占用者再跑）" >&2
+    exit 1
+  fi
+done
+
 mk_home "$EQ/home-old"
 mk_home "$EQ/home-new"
 # 在新版 home 里种一个旧 LaunchAgent，验证迁移（红线 #5）
