@@ -1,0 +1,63 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  @font-face {
+    font-family: "Outfit";
+    src: url("../../src/assets/fonts/outfit-latin.woff2") format("woff2");
+    font-weight: 400 700;
+  }
+  * { margin: 0; box-sizing: border-box; }
+  html, body { width: 660px; height: 400px; overflow: hidden; }
+  body {
+    font-family: "Outfit", -apple-system, "PingFang SC", sans-serif;
+    background:
+      radial-gradient(120% 90% at 50% 30%, #232427 0%, #1B1C1F 55%, #151619 100%);
+    position: relative;
+  }
+  /* 品牌字标：Model 白 + Link 陶土（对齐 ClaudeCN 的 白+橙 拆分） */
+  .brand {
+    position: absolute; top: 62px; left: 0; right: 0;
+    text-align: center;
+    font-size: 44px; font-weight: 700; letter-spacing: -0.5px;
+    color: #F5F3EE;
+  }
+  .brand b { color: #E27B54; font-weight: 700; }
+  .tagline {
+    position: absolute; top: 118px; left: 0; right: 0;
+    text-align: center;
+    font-size: 12.5px; letter-spacing: 3px;
+    color: #8B8A88;
+    font-weight: 400;
+  }
+  /* 拖拽面板：圆角浅面板，装 app 与 Applications 两个图标位 */
+  .panel {
+    position: absolute; left: 40px; right: 40px; top: 152px; height: 196px;
+    background: rgba(255, 255, 255, 0.075);
+    border-radius: 28px;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  }
+  /* 双箭头：位于两图标（180,240）与（480,240）正中 */
+  .chev {
+    position: absolute; top: 218px; left: 0; right: 0;
+    text-align: center;
+    color: #D97757;
+    font-size: 34px; font-weight: 700; line-height: 1;
+  }
+  .hint {
+    position: absolute; top: 274px; left: 0; right: 0;
+    text-align: center;
+    font-size: 11px; letter-spacing: 2px;
+    color: #77767A;
+  }
+</style>
+</head>
+<body>
+  <div class="brand">Model<b>Link</b></div>
+  <div class="tagline">把国产大模型接入 Claude Desktop</div>
+  <div class="panel"></div>
+  <div class="chev">&#187;</div>
+  <div class="hint">拖拽至</div>
+</body>
+</html>
