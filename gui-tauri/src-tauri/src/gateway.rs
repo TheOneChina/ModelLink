@@ -242,8 +242,8 @@ pub fn apply_to_claude_desktop(config: &Config) -> Result<String, String> {
         if !p.target_url.starts_with("http://") && !p.target_url.starts_with("https://") {
             return Err(format!("Provider {} URL must start with http:// or https://", i + 1));
         }
-        if p.api_key.is_empty() {
-            return Err(format!("Provider {} has no API key.", i + 1));
+        if p.api_key.is_empty() && p.enabled_keys().is_empty() {
+            return Err(format!("Provider {} has no API key. Add at least one enabled key.", i + 1));
         }
         if p.models.is_empty() {
             return Err(format!("Provider {} has no models.", i + 1));
@@ -498,6 +498,7 @@ mod tests {
             providers: vec![Provider {
                 target_url: "https://a.example.com".into(),
                 api_key: "k".into(),
+                api_keys: Vec::new(),
                 models: vec![
                     ModelEntry { name: "Kimi-k2.6".into(), to_1m: "auto".into() },
                     ModelEntry { name: "mimo-v2.5-pro".into(), to_1m: "".into() },

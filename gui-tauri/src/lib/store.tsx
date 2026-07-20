@@ -87,6 +87,10 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
     if (configQuery.data && draftRef.current === null) {
       const cfg = structuredClone(configQuery.data);
       cfg.providers ??= [];
+      // 老配置（v1 或 2.0 早期）无 api_keys 字段，补默认空数组
+      cfg.providers.forEach((p) => {
+        p.api_keys ??= [];
+      });
       setDraft(cfg);
       configHash(cfg)
         .then((h) =>
@@ -170,10 +174,11 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
       updateDraft((c) => {
         const p: Provider =
           preset === "custom"
-            ? { target_url: "", api_key: "", models: [], thinking_effort: "" }
+            ? { target_url: "", api_key: "", api_keys: [], models: [], thinking_effort: "" }
             : {
                 target_url: preset.url,
                 api_key: "",
+                api_keys: [],
                 models: preset.models.map((name) => ({ name, to_1m: "auto" })),
                 thinking_effort: "",
               };

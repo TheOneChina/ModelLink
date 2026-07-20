@@ -63,6 +63,11 @@ export function LogsPage() {
                   <span className="min-w-0 flex-1 truncate font-semibold text-foreground">
                     {l.model}
                   </span>
+                  {l.key_label && (
+                    <span className="mono flex-none rounded-[5px] border bg-background px-1.5 py-px text-[10px] font-normal text-muted-foreground">
+                      {l.key_label}
+                    </span>
+                  )}
                   {THINKING_TAGS[l.thinking] && (
                     <span className="flex-none rounded-[5px] border bg-background px-1.5 py-px font-sans text-[10px] font-normal text-muted-foreground">
                       {THINKING_TAGS[l.thinking]}

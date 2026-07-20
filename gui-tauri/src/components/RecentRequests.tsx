@@ -51,6 +51,11 @@ export function RecentRequests() {
             <span className="flex min-w-0 flex-1 items-center">
               <span className="mono truncate text-xs font-medium text-foreground">{l.model}</span>
             </span>
+            {l.key_label && (
+              <span className="mono flex-none rounded-[5px] border bg-background px-1.5 py-px text-[10px] text-muted-foreground">
+                {l.key_label}
+              </span>
+            )}
             {THINKING_TAGS[l.thinking] && (
               <span className="flex-none rounded-[5px] border bg-background px-1.5 py-px text-[10px] text-muted-foreground">
                 {THINKING_TAGS[l.thinking]}

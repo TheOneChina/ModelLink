@@ -12,6 +12,7 @@ let store: Config = {
     {
       target_url: "https://api.deepseek.com/anthropic",
       api_key: "sk-mock-1234567890",
+      api_keys: [],
       models: [
         { name: "deepseek-v4-pro", to_1m: "auto" },
         { name: "deepseek-v4-flash", to_1m: "" },
@@ -21,6 +22,7 @@ let store: Config = {
     {
       target_url: "https://api.moonshot.cn/anthropic",
       api_key: "sk-mock-0987654321",
+      api_keys: [],
       models: [{ name: "kimi-k2.5", to_1m: "auto" }],
       thinking_effort: "",
     },

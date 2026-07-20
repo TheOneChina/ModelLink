@@ -12,9 +12,20 @@ export type ModelEntry = {
   to_1m: string;
 };
 
+export type ApiKeyEntry = {
+  key: string;
+  /** 自定义名称（如 01、账号A），用于日志识别轮询到哪个 key。空则不显示。 */
+  label: string;
+  /** false 时此 key 不参与轮询（账号额度用尽可关闭）。默认 true。 */
+  enabled?: boolean;
+};
+
 export type Provider = {
   target_url: string;
+  /** v1 兼容字段：单 key。新版优先用 api_keys；为空时回退到此字段。 */
   api_key: string;
+  /** 多 key 轮询池（2.0 多账号改造）。 */
+  api_keys: ApiKeyEntry[];
   models: ModelEntry[];
   /** "" 默认（不干预）/ "off" 关闭思考 / "high" 标准 / "max" 深度 */
   thinking_effort: string;
@@ -37,6 +48,8 @@ export type LogEntry = {
   model: string;
   status: number;
   thinking: string;
+  /** 本轮请求使用的密钥 label（2.0 多 key 改造）。空则不显示。 */
+  key_label?: string;
 };
 
 export type TestResult = { ok: boolean; message: string };

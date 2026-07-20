@@ -16,11 +16,11 @@ use axum::{
 };
 use reqwest::Client;
 use serde::Serialize;
-use std::sync::atomic::{AtomicBool, AtomicU16, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU16, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, RwLock};
 use tokio::net::TcpListener;
 
-use crate::config::{flatten_config, resolve_model, Config, ResolvedModel};
+use crate::config::{flatten_config, resolve_model, ApiKeyEntry, Config, ResolvedModel};
 
 pub const MAX_LOGS: usize = 100;
 
@@ -30,6 +30,9 @@ pub struct LogEntry {
     pub model: String,
     pub status: u16,
     pub thinking: String,
+    /// 2.0 多 key 改造：本轮请求实际使用的密钥 label（用于日志识别哪个账号在消耗）。
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub key_label: String,
 }
 
 /// 代理与命令层共享的全局状态（与 v1 AppState 同构 + 2.0 运行态：端口热切换）。
@@ -43,6 +46,8 @@ pub struct ProxyState {
     pub bound_port: AtomicU16,
     /// 当前 serve 任务句柄，切换端口时 abort 旧任务释放监听。
     pub serve_handle: Mutex<Option<tauri::async_runtime::JoinHandle<()>>>,
+    /// 多 key 轮询计数器（2.0 多账号改造）：每次请求 fetch_add 后对 enabled keys 取模。
+    pub key_counter: AtomicUsize,
 }
 
 impl ProxyState {
@@ -52,12 +57,14 @@ impl ProxyState {
             client: Client::builder()
                 .connect_timeout(std::time::Duration::from_secs(30))
                 .timeout(std::time::Duration::from_secs(300))
+                .no_proxy()
                 .build()
                 .map_err(|e| format!("Failed to create HTTP client: {}", e))?,
             logs: RwLock::new(Vec::new()),
             running: AtomicBool::new(false),
             bound_port: AtomicU16::new(0),
             serve_handle: Mutex::new(None),
+            key_counter: AtomicUsize::new(0),
         })
     }
 
@@ -142,6 +149,18 @@ pub(crate) fn inject_thinking(data: &mut serde_json::Value, te: &str) -> String 
     }
 }
 
+/// 多 key 轮询：从 enabled keys 中按全局计数器取一个。
+/// 返回 (key 明文, label) —— 无可用 key 时返回空串（由调用方兜底报错）。
+fn pick_round_robin_key(state: &ProxyState, keys: &[ApiKeyEntry]) -> (String, String) {
+    if keys.is_empty() {
+        return (String::new(), String::new());
+    }
+    let idx = state.key_counter.fetch_add(1, Ordering::SeqCst) % keys.len();
+    eprintln!("  key index: {}/{} (round-robin)", idx, keys.len());
+    let k = &keys[idx];
+    (k.key.clone(), k.label.clone())
+}
+
 async fn proxy_fallback(
     State(state): State<Arc<ProxyState>>,
     req: axum::http::Request<Body>,
@@ -178,7 +197,7 @@ async fn proxy_fallback(
         ResolvedModel {
             model: String::new(),
             target_url: String::new(),
-            api_key: String::new(),
+            api_keys: Vec::new(),
             thinking_effort: String::new(),
         }
     };
@@ -191,6 +210,12 @@ async fn proxy_fallback(
         return (StatusCode::BAD_GATEWAY, "No API URL configured for this model. Please configure the provider in the proxy app.").into_response();
     }
 
+    let (selected_key, key_label) = pick_round_robin_key(&state, &resolved.api_keys);
+    if selected_key.is_empty() {
+        eprintln!("  error: no enabled API key for this provider");
+        return (StatusCode::BAD_GATEWAY, "No enabled API key for this provider. Enable at least one key in the proxy app.").into_response();
+    }
+
     let base = resolved.target_url.trim_end_matches('/');
     let url = format!("{}{}", base, parts.uri.path());
 
@@ -198,7 +223,7 @@ async fn proxy_fallback(
         .client
         .post(&url)
         .header("content-type", "application/json")
-        .header("authorization", format!("Bearer {}", resolved.api_key))
+        .header("authorization", format!("Bearer {}", selected_key))
         .header(
             "anthropic-version",
             parts
@@ -235,6 +260,7 @@ async fn proxy_fallback(
             model: model.to_string(),
             status: raw_status,
             thinking: thinking_log.clone(),
+            key_label: key_label.clone(),
         };
         let mut logs = state.logs.write().unwrap_or_else(|e| e.into_inner());
         logs.push(entry);
@@ -283,6 +309,7 @@ mod tests {
             providers: vec![Provider {
                 target_url: "https://a.example.com".into(),
                 api_key: "k".into(),
+                api_keys: Vec::new(),
                 models: vec![
                     ModelEntry { name: "m-with-1m".into(), to_1m: "auto".into() },
                     ModelEntry { name: "m-plain".into(), to_1m: "".into() },

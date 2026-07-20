@@ -64,15 +64,62 @@ impl Default for Config {
 }
 
 #[derive(Serialize, Deserialize, Clone, Default)]
+pub struct ApiKeyEntry {
+    #[serde(default)]
+    pub key: String,
+    #[serde(default)]
+    pub label: String,
+    #[serde(default = "default_enabled", skip_serializing_if = "is_default_enabled")]
+    pub enabled: bool,
+}
+
+fn default_enabled() -> bool {
+    true
+}
+fn is_default_enabled(e: &bool) -> bool {
+    *e
+}
+
+#[derive(Serialize, Deserialize, Clone, Default)]
 pub struct Provider {
     #[serde(default)]
     pub target_url: String,
+    /// v1 兼容字段：单 key。新版读写优先用 api_keys，此字段仅作老配置迁移来源 +
+    /// 向后兼容（写盘时与 api_keys[0] 保持同步，避免老版本读不懂）。
     #[serde(default)]
     pub api_key: String,
+    /// 多 key 轮询池（2.0 多账号改造）：空时回退到 api_key 单 key。
+    /// 空数组不序列化 —— 保证 v1 老格式文件输出不变（红线 #2）。
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub api_keys: Vec<ApiKeyEntry>,
     #[serde(default)]
     pub models: Vec<ModelEntry>,
     #[serde(default)]
     pub thinking_effort: String,
+}
+
+impl Provider {
+    /// 返回本轮可用的 key 列表：优先 api_keys 中 enabled 且非空的，
+    /// 回退到 v1 api_key（保证老配置至少能用一个 key）。
+    pub fn enabled_keys(&self) -> Vec<ApiKeyEntry> {
+        let from_list: Vec<ApiKeyEntry> = self
+            .api_keys
+            .iter()
+            .filter(|k| k.enabled && !k.key.is_empty())
+            .cloned()
+            .collect();
+        if !from_list.is_empty() {
+            from_list
+        } else if !self.api_key.is_empty() {
+            vec![ApiKeyEntry {
+                key: self.api_key.clone(),
+                label: String::new(),
+                enabled: true,
+            }]
+        } else {
+            Vec::new()
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Default)]
@@ -173,7 +220,7 @@ pub fn canonical_hash(config: &Config) -> String {
 pub struct ResolvedModel {
     pub model: String,
     pub target_url: String,
-    pub api_key: String,
+    pub api_keys: Vec<ApiKeyEntry>,
     pub thinking_effort: String,
 }
 
@@ -182,7 +229,7 @@ pub struct FlatEntry {
     pub name: String,
     pub to_1m: String,
     pub url: String,
-    pub key: String,
+    pub keys: Vec<ApiKeyEntry>,
     pub thinking_effort: String,
 }
 
@@ -190,6 +237,7 @@ pub fn flatten_config(config: &Config) -> Vec<FlatEntry> {
     let mut result = Vec::new();
     let mut count = 0;
     for provider in &config.providers {
+        let keys = provider.enabled_keys();
         for m in &provider.models {
             if count < MAX_MODELS && count < ANTHROPIC_SLOTS.len() && !m.name.is_empty() {
                 result.push(FlatEntry {
@@ -197,7 +245,7 @@ pub fn flatten_config(config: &Config) -> Vec<FlatEntry> {
                     name: m.name.clone(),
                     to_1m: m.to_1m.clone(),
                     url: provider.target_url.clone(),
-                    key: provider.api_key.clone(),
+                    keys: keys.clone(),
                     thinking_effort: provider.thinking_effort.clone(),
                 });
                 count += 1;
@@ -225,7 +273,7 @@ pub fn resolve_model(model: &str, config: &Config) -> ResolvedModel {
             return ResolvedModel {
                 model: resolved,
                 target_url: e.url.clone(),
-                api_key: e.key.clone(),
+                api_keys: e.keys.clone(),
                 thinking_effort: e.thinking_effort.clone(),
             };
         }
@@ -240,14 +288,14 @@ pub fn resolve_model(model: &str, config: &Config) -> ResolvedModel {
         ResolvedModel {
             model: resolved,
             target_url: e.url,
-            api_key: e.key,
+            api_keys: e.keys,
             thinking_effort: e.thinking_effort,
         }
     } else {
         ResolvedModel {
             model: model.to_string(),
             target_url: String::new(),
-            api_key: String::new(),
+            api_keys: Vec::new(),
             thinking_effort: String::new(),
         }
     }
@@ -265,6 +313,7 @@ mod tests {
         Provider {
             target_url: url.into(),
             api_key: key.into(),
+            api_keys: Vec::new(),
             models,
             thinking_effort: te.into(),
         }
@@ -299,7 +348,8 @@ mod tests {
         assert_eq!(flat[1].name, "model-a2");
         assert_eq!(flat[2].slot, "claude-3-sonnet-20240229");
         assert_eq!(flat[2].name, "model-b1");
-        assert_eq!(flat[2].key, "key-b");
+        assert_eq!(flat[2].keys.len(), 1);
+        assert_eq!(flat[2].keys[0].key, "key-b");
         assert_eq!(flat[2].thinking_effort, "off");
     }
 
@@ -341,7 +391,8 @@ mod tests {
         let r = resolve_model("claude-3-sonnet-20240229", &cfg);
         assert_eq!(r.model, "model-b1");
         assert_eq!(r.target_url, "https://b.example.com");
-        assert_eq!(r.api_key, "key-b");
+        assert_eq!(r.api_keys.len(), 1);
+        assert_eq!(r.api_keys[0].key, "key-b");
         assert_eq!(r.thinking_effort, "off");
     }
 
@@ -381,8 +432,60 @@ mod tests {
         let r = resolve_model("claude-3-opus-latest", &cfg);
         assert_eq!(r.model, "claude-3-opus-latest");
         assert_eq!(r.target_url, "");
-        assert_eq!(r.api_key, "");
+        assert!(r.api_keys.is_empty());
         assert_eq!(r.thinking_effort, "");
+    }
+
+    // ---- 多 key 轮询（2.0 多账号改造） ----
+
+    #[test]
+    fn enabled_keys_filters_disabled_and_empty() {
+        let p = Provider {
+            target_url: "https://a".into(),
+            api_key: "".into(),
+            api_keys: vec![
+                ApiKeyEntry { key: "k1".into(), label: "L1".into(), enabled: true },
+                ApiKeyEntry { key: "k2".into(), label: "L2".into(), enabled: false },
+                ApiKeyEntry { key: "".into(), label: "L3".into(), enabled: true },
+            ],
+            models: vec![],
+            thinking_effort: String::new(),
+        };
+        let keys = p.enabled_keys();
+        assert_eq!(keys.len(), 1);
+        assert_eq!(keys[0].key, "k1");
+        assert_eq!(keys[0].label, "L1");
+    }
+
+    #[test]
+    fn enabled_keys_falls_back_to_v1_api_key() {
+        let p = Provider {
+            target_url: "https://a".into(),
+            api_key: "legacy".into(),
+            api_keys: vec![],
+            models: vec![],
+            thinking_effort: String::new(),
+        };
+        let keys = p.enabled_keys();
+        assert_eq!(keys.len(), 1);
+        assert_eq!(keys[0].key, "legacy");
+    }
+
+    #[test]
+    fn api_keys_serialized_when_non_empty() {
+        let cfg = Config {
+            providers: vec![Provider {
+                target_url: "https://a".into(),
+                api_key: "".into(),
+                api_keys: vec![ApiKeyEntry { key: "k1".into(), label: "L1".into(), enabled: true }],
+                models: vec![model("m1", "")],
+                thinking_effort: String::new(),
+            }],
+            ..Default::default()
+        };
+        let out = serde_json::to_string(&cfg).unwrap();
+        assert!(out.contains("\"api_keys\""));
+        assert!(out.contains("\"label\":\"L1\""));
     }
 
     // ---- serde 格式兼容（红线 #2） ----

@@ -84,13 +84,14 @@ export function ProviderEditor({ index }: { index: number }) {
   // 测试反馈走 toast（2026-07-14 用户调整，原 inline 结果 6s 淡出）
   const runTest = async () => {
     const first = p.models[0]?.name;
-    if (!p.target_url || !p.api_key || !first) {
-      toast.error("请填写 API 地址、密钥和至少一个模型名。");
+    const testKey = p.api_keys.find((k) => k.enabled && k.key)?.key ?? p.api_key;
+    if (!p.target_url || !testKey || !first) {
+      toast.error("请填写 API 地址、至少一个启用的密钥和模型名。");
       return;
     }
     setTesting(true);
     try {
-      const r = await testProvider(p.target_url, p.api_key, first);
+      const r = await testProvider(p.target_url, testKey, first);
       if (r.ok) toast.success("连接成功 (HTTP 200)");
       else toast.error(r.message);
       setTestedOk(index, r.ok);
@@ -125,30 +126,116 @@ export function ProviderEditor({ index }: { index: number }) {
         />
       </div>
       <div className="flex flex-col gap-[5px]">
-        <label className={fieldLabelCls}>API 密钥</label>
-        <div className="relative">
-          <Input
-            ref={keyRef}
-            type={showKey ? "text" : "password"}
-            value={p.api_key}
-            onChange={(e) =>
-              updateDraft((c) => {
-                c.providers[index].api_key = e.target.value;
-              })
-            }
-            placeholder="sk-…"
-            className={cn(inputCls, "w-full pr-8")}
-          />
+        <div className="flex items-center justify-between">
+          <label className={fieldLabelCls}>API 密钥（轮询池）</label>
           <button
             type="button"
-            onClick={() => setShowKey((v) => !v)}
-            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-faint transition-colors hover:text-muted-foreground"
-            aria-label={showKey ? "隐藏密钥" : "显示密钥"}
+            onClick={() =>
+              updateDraft((c) => {
+                c.providers[index].api_keys.push({ key: "", label: "", enabled: true });
+              })
+            }
+            className="text-[11px] font-medium text-primary transition-colors hover:text-primary/80"
           >
-            {showKey ? <EyeOff size={14} /> : <Eye size={14} />}
+            + 添加密钥
           </button>
         </div>
+        {p.api_keys.length === 0 && (
+          <p className="text-[11px] text-faint">
+            未配置多 key，将使用下方单 key 字段（兼容旧配置）。
+          </p>
+        )}
+        {p.api_keys.map((ak, ki) => (
+          <div key={ki} className="flex items-center gap-[7px]">
+            <Input
+              value={ak.label}
+              onChange={(e) =>
+                updateDraft((c) => {
+                  c.providers[index].api_keys[ki].label = e.target.value;
+                })
+              }
+              placeholder="名称"
+              title="自定义名称，用于日志识别（如 01、账号A）"
+              className={cn(inputCls, "w-[88px] flex-none")}
+            />
+            <div className="relative min-w-0 flex-1">
+              <Input
+                type={showKey ? "text" : "password"}
+                value={ak.key}
+                onChange={(e) =>
+                  updateDraft((c) => {
+                    c.providers[index].api_keys[ki].key = e.target.value;
+                  })
+                }
+                placeholder="sk-…"
+                className={cn(inputCls, "w-full pr-8")}
+              />
+              <button
+                type="button"
+                onClick={() => setShowKey((v) => !v)}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-faint transition-colors hover:text-muted-foreground"
+                aria-label={showKey ? "隐藏密钥" : "显示密钥"}
+              >
+                {showKey ? <EyeOff size={14} /> : <Eye size={14} />}
+              </button>
+            </div>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span tabIndex={0}>
+                  <Switch
+                    checked={!!ak.enabled}
+                    onCheckedChange={(ck) =>
+                      updateDraft((c) => {
+                        c.providers[index].api_keys[ki].enabled = ck;
+                      })
+                    }
+                  />
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>{ak.enabled ? "已启用（参与轮询）" : "已禁用"}</TooltipContent>
+            </Tooltip>
+            <button
+              onClick={() =>
+                updateDraft((c) => {
+                  c.providers[index].api_keys.splice(ki, 1);
+                })
+              }
+              className="flex-none text-faint transition-colors hover:text-destructive"
+              aria-label="删除密钥"
+            >
+              <X size={13} />
+            </button>
+          </div>
+        ))}
       </div>
+      {/* v1 兼容单 key 字段：api_keys 为空时用此字段（老配置迁移用） */}
+      {p.api_keys.length === 0 && (
+        <div className="flex flex-col gap-[5px]">
+          <label className={fieldLabelCls}>API 密钥（单 key）</label>
+          <div className="relative">
+            <Input
+              ref={keyRef}
+              type={showKey ? "text" : "password"}
+              value={p.api_key}
+              onChange={(e) =>
+                updateDraft((c) => {
+                  c.providers[index].api_key = e.target.value;
+                })
+              }
+              placeholder="sk-…"
+              className={cn(inputCls, "w-full pr-8")}
+            />
+            <button
+              type="button"
+              onClick={() => setShowKey((v) => !v)}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-faint transition-colors hover:text-muted-foreground"
+              aria-label={showKey ? "隐藏密钥" : "显示密钥"}
+            >
+              {showKey ? <EyeOff size={14} /> : <Eye size={14} />}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* 模型区标签行 + 测试连接（结果弹 toast） */}
       <div className="flex items-center justify-between">
